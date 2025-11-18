@@ -1,0 +1,70 @@
+{
+  "name": "kuaukutsu/poc-queue-stream",
+  "description": "Proof of Concept: Task Queue by Redis Stream",
+  "type": "library",
+  "license": "MIT",
+  "version": "0.0.1",
+  "authors": [
+    {
+      "name": "Dmitriy Krivopalov",
+      "email": "dimarik82@gmail.com"
+    }
+  ],
+  "support": {
+    "issues": "https://github.com/kuaukutsu/poc-queue-stream/issues",
+    "source": "https://github.com/kuaukutsu/poc-queue-stream"
+  },
+  "require": {
+    "php": "^8.3",
+    "ext-redis": "*",
+    "amphp/redis": "^2.0",
+    "kuaukutsu/queue-core": "^0.3"
+  },
+  "require-dev": {
+    "ext-pcntl": "*",
+    "php-di/php-di": "^7.0",
+    "phpstan/phpstan": "^2.0",
+    "phpunit/phpunit": "^10.1",
+    "phpbench/phpbench": "^1.4",
+    "rector/rector": "^2.0",
+    "roave/security-advisories": "dev-latest",
+    "slevomat/coding-standard": "^8.7",
+    "squizlabs/php_codesniffer": "^3.7",
+    "vimeo/psalm": "^6.13"
+  },
+  "autoload": {
+    "psr-4": {
+      "kuaukutsu\\poc\\queue\\stream\\": "src"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "kuaukutsu\\poc\\queue\\stream\\tests\\": "tests"
+    },
+    "files": [
+      "tests/functions.php"
+    ]
+  },
+  "config": {
+    "platform": {
+      "php": "8.3.21"
+    },
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  },
+  "scripts": {
+    "check": [
+      "@phpcs",
+      "@psalm",
+      "@phpstan"
+    ],
+    "phpcs": "vendor/bin/phpcs",
+    "psalm": "vendor/bin/psalm --show-info --no-diff --no-cache",
+    "phpstan": "vendor/bin/phpstan analyze",
+    "rector": "vendor/bin/rector"
+  },
+  "minimum-stability": "dev",
+  "prefer-stable": true
+}

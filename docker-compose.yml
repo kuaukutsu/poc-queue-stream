@@ -1,0 +1,176 @@
+x-default-logging: &default-logging
+  driver: local
+  options:
+    max-size: "5m"
+    max-file: "3"
+
+x-service-volume: &service-volume
+  - type: bind
+    source: ./src
+    target: /src
+  - type: bind
+    source: ./benchmark
+    target: /benchmark
+  - type: bind
+    source: ./tests
+    target: /tests
+  - type: bind
+    source: ./vendor
+    target: /vendor
+
+name: queue_stream
+services:
+  cli:
+    container_name: queue_stream_cli
+    profiles: [ "cli" ]
+    build:
+      context: .docker/php/cli
+      target: app_devel
+      args:
+        UID: ${USER:-1} # ID:1 daemon, support: linux, mac
+        WORKDIR: "/src"
+    env_file:
+      - .docker/base.env
+    volumes: *service-volume
+    logging: *default-logging
+
+  r_worker:
+    profiles: [ "serve" ]
+    build:
+      context: .docker/php/cli
+      target: app_worker
+      args:
+        UID: ${USER:-1} # ID:1 daemon, support: linux, mac
+        WORKDIR: "/tests/simulation"
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    depends_on:
+      redis:
+        condition: service_healthy
+    env_file:
+      - .docker/base.env
+    command: [ "php", "worker-redis.php", "--schema=redis" ]
+    volumes: *service-volume
+    logging: *default-logging
+
+  v_worker:
+    profiles: [ "serve" ]
+    build:
+      context: .docker/php/cli
+      target: app_worker
+      args:
+        UID: ${USER:-1} # ID:1 daemon, support: linux, mac
+        WORKDIR: "/tests/simulation"
+    deploy:
+      mode: replicated
+      replicas: 2
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    depends_on:
+      valkey:
+        condition: service_healthy
+    env_file:
+      - .docker/base.env
+    command: [ "php", "worker-valkey.php", "--schema=valkey" ]
+    volumes: *service-volume
+    logging: *default-logging
+
+  redis:
+    container_name: queue_stream_redis
+    profiles: [ "serve" ]
+    restart: on-failure
+    build:
+      context: .docker/redis
+      args:
+        UID: ${USER:-1} # ID:1 daemon, support: linux, mac
+    cap_drop:
+      - NET_ADMIN
+      - SYS_ADMIN
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    configs:
+      - source: redis
+        target: /usr/local/etc/redis/redis.conf
+    command: [ "redis-server", "/usr/local/etc/redis/redis.conf" ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - vredis:/data
+    logging: *default-logging
+
+  inside:
+    container_name: queue_stream_inside
+    image: redis/redisinsight:latest
+    profiles: [ "serve" ]
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_stream_HOST=redis
+      - RI_stream_PORT=6379
+    logging: *default-logging
+
+  valkey:
+    container_name: queue_stream_valkey
+    profiles: [ "serve" ]
+    restart: on-failure
+    build:
+      context: .docker/valkey
+      args:
+        UID: ${USER:-1} # ID:1 daemon, support: linux, mac
+    cap_drop:
+      - NET_ADMIN
+      - SYS_ADMIN
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+    configs:
+      - source: valkey
+        target: /usr/local/etc/valkey/valkey.conf
+    command: [ "redis-server", "/usr/local/etc/valkey/valkey.conf" ]
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - vvalkey:/data
+    logging: *default-logging
+
+configs:
+  redis:
+    name: conf_${VERSION:-1}
+    file: .docker/redis/redis.conf
+  valkey:
+    name: conf_${VERSION:-1}
+    file: .docker/valkey/valkey.conf
+
+volumes:
+  vredis:
+  vvalkey:
