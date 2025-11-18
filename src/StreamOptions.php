@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream;
 
-final readonly class ConsumerOptions
+final readonly class StreamOptions
 {
     /**
      * @param non-empty-string $consumerName

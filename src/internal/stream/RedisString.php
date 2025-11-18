@@ -30,12 +30,18 @@ final readonly class RedisString
     }
 
     /**
-     * @param non-empty-string $uuid
+     * @param non-empty-string $source
+     * @param non-empty-string $destination
      * @param positive-int $ttl
      */
-    public function expire(string $uuid, int $ttl = 900): bool
+    public function copy(string $source, string $destination, int $ttl = 600): bool
     {
-        return $this->client->expireIn($uuid, $ttl);
+        $row = $this->client->execute('COPY', $source, $destination);
+        if ($row > 0) {
+            return $this->client->expireIn($destination, $ttl);
+        }
+
+        return false;
     }
 
     /**

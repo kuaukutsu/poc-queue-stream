@@ -76,7 +76,7 @@ build:
 remove: down _image_remove _container_remove _volume_remove
 
 app:
-	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w /src cli sh
+	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w /tests/simulation cli sh
 
 publisher:
 	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w /tests/simulation cli \

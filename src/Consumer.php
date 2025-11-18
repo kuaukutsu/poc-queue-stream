@@ -6,19 +6,17 @@ namespace kuaukutsu\poc\queue\stream;
 
 use Override;
 use Throwable;
-use Amp\Redis\RedisClient;
 use Revolt\EventLoop;
-use kuaukutsu\poc\queue\stream\internal\Context;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
-use kuaukutsu\poc\queue\stream\internal\workflow\TaskRunner;
-use kuaukutsu\poc\queue\stream\internal\workflow\WorkflowClaim;
-use kuaukutsu\poc\queue\stream\internal\workflow\WorkflowMain;
 use kuaukutsu\queue\core\exception\QueueConsumeException;
 use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\ConsumerInterface;
-use kuaukutsu\queue\core\SchemaInterface;
+use kuaukutsu\poc\queue\stream\internal\Context;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
+use kuaukutsu\poc\queue\stream\internal\workflow\TaskRunner;
+use kuaukutsu\poc\queue\stream\internal\workflow\WorkflowClaim;
+use kuaukutsu\poc\queue\stream\internal\workflow\WorkflowMain;
 
 /**
  * @api
@@ -29,21 +27,14 @@ final readonly class Consumer implements ConsumerInterface
 
     private TaskRunner $runner;
 
-    private RedisStreamGroup $stream;
-
     public function __construct(
-        RedisClient $client,
-        SchemaInterface $schema,
+        RedisStream $stream,
+        private RedisStreamGroup $streamGroup,
+        RedisString $string,
         HandlerInterface $handler,
-        ConsumerOptions $options,
     ) {
-        $this->stream = new RedisStreamGroup($client, $schema, $options);
-
-        $string = new RedisString($client);
-        $this->ctx = new Context($string, $this->stream);
-
-        $stream = new RedisStream($client, $schema);
-        $this->runner = new TaskRunner($string, $stream, $handler);
+        $this->ctx = new Context($string, $this->streamGroup);
+        $this->runner = new TaskRunner($string, $stream, $this->streamGroup, $handler);
     }
 
     /**
@@ -53,11 +44,11 @@ final readonly class Consumer implements ConsumerInterface
     #[Override]
     public function consume(?callable $catch = null): void
     {
-        $this->stream->create();
+        $this->streamGroup->create();
 
         $worflow = new WorkflowMain(
             $this->runner,
-            $this->stream,
+            $this->streamGroup,
         );
 
         EventLoop::queue(
@@ -65,7 +56,7 @@ final readonly class Consumer implements ConsumerInterface
             $this->ctx->withCatch($catch),
             new WorkflowClaim(
                 $this->runner,
-                $this->stream,
+                $this->streamGroup,
             ),
         );
     }
@@ -73,6 +64,6 @@ final readonly class Consumer implements ConsumerInterface
     public function disconnect(): void
     {
         $this->ctx->cancel();
-        $this->stream->delConsumer();
+        $this->streamGroup->delConsumer();
     }
 }

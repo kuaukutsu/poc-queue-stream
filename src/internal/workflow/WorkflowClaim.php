@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
-use Throwable;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
@@ -25,9 +24,7 @@ final readonly class WorkflowClaim
     public function __invoke(Context $ctx): void
     {
         foreach ($this->autoclaim($this->stream) as $identity => $payload) {
-            if ($this->action->run($ctx, $identity, $payload)) {
-                $ctx->setAck($identity, $payload->uuid);
-            } elseif ($this->isExceededAttempts($identity, $payload)) {
+            if ($this->action->run($ctx, $identity, $payload, 3)) {
                 $ctx->setAck($identity, $payload->uuid);
             }
         }
@@ -66,22 +63,5 @@ final readonly class WorkflowClaim
          * @var iterable<non-empty-string, Payload>
          */
         return async($fn(...), $command)->await();
-    }
-
-    /**
-     * @param non-empty-string $identity
-     */
-    private function isExceededAttempts(string $identity, Payload $payload): bool
-    {
-        $maxExceededAttempts = 2;
-
-        try {
-            $pendingState = $this->stream->pending($identity);
-        } catch (Throwable) {
-            return false;
-        }
-
-        return $pendingState['deliveryCount'] >= $maxExceededAttempts
-            && $this->action->pushDLQ($identity, $payload, 'The number of attempts has been exceeded.');
     }
 }

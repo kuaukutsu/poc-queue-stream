@@ -25,12 +25,9 @@ final class Publisher implements PublisherInterface
 {
     private WeakMap $map;
 
-    private readonly RedisString $storage;
-
     public function __construct(private readonly RedisClient $client)
     {
         $this->map = new WeakMap();
-        $this->storage = new RedisString($this->client);
     }
 
     /**
@@ -40,7 +37,8 @@ final class Publisher implements PublisherInterface
     #[Override]
     public function push(SchemaInterface $schema, QueueTask $task, ?QueueContext $context = null): string
     {
-        $this->storage->set(
+        $storage = new RedisString($this->client);
+        $storage->set(
             $task->getUuid(),
             QueueMessage::makeMessage($task, $context ?? QueueContext::make($schema)),
         );
@@ -50,8 +48,7 @@ final class Publisher implements PublisherInterface
                 Payload::fromTask($task)->toArray()
             );
         } catch (Throwable $exception) {
-            $this->storage->del($task->getUuid());
-
+            $storage->del($task->getUuid());
             throw new QueuePublishException($schema, $exception);
         }
 

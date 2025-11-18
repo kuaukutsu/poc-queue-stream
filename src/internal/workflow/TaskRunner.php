@@ -8,8 +8,9 @@ use Throwable;
 use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\QueueMessage;
 use kuaukutsu\poc\queue\stream\exception\WorkflowException;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
@@ -23,25 +24,27 @@ final readonly class TaskRunner
     public function __construct(
         private RedisString $string,
         private RedisStream $stream,
+        private RedisStreamGroup $streamGroup,
         private HandlerInterface $handler,
     ) {
     }
 
     /**
      * @param non-empty-string $identity
+     * @param non-negative-int $maxExceededAttempts
      * @return bool TRUE отправить ACK; FALSE не отправлять ACK
      */
-    public function run(Context $ctx, string $identity, Payload $payload): bool
+    public function run(Context $ctx, string $identity, Payload $payload, int $maxExceededAttempts = 0): bool
     {
         $message = $this->string->get($payload->uuid);
         if ($message === null || $message === '') {
-            // нет смысла убрать в DLQ
-            return $ctx->tryCatch(
-                '<NULL>',
-                new WorkflowException(
-                    "[$identity:$payload->uuid] The payload message must not be empty."
-                ),
-            );
+            $exception = new WorkflowException("[$payload->uuid] The payload message must not be empty.");
+            if ($ctx->tryCatch('<NULL>', $exception)) {
+                return true;
+            }
+
+            // The payload message is empty.
+            return $this->pushDLQ($identity, $payload, $exception->getMessage());
         }
 
         try {
@@ -58,28 +61,80 @@ final readonly class TaskRunner
         try {
             $this->handler->handle($queueMessage);
         } catch (Throwable $exception) {
-            return $ctx->tryCatch($message, $exception);
+            if ($ctx->tryCatch($message, $exception)) {
+                return true;
+            }
+
+            return $maxExceededAttempts > 0
+                && $this->isExceededAttempts($identity, $payload, $exception->getMessage());
         }
 
         return true;
     }
 
-    public function pushDLQ(string $identity, Payload $payload, string $reason): bool
+    private function pushDLQ(string $identity, Payload $payload, string $reason): bool
     {
-        $this->string->expire($payload->uuid);
+        $newUuid = $this->copyPayload($payload);
+        if ($newUuid === false) {
+            return false;
+        }
 
         try {
             $this->stream->dlq(
                 [
                     'id' => $identity,
                     'reason' => $reason,
-                    ...$payload->toArray(),
+                    'uuid' => $newUuid,
+                    'target' => $payload->target,
                 ],
             );
         } catch (Throwable) {
+            $this->string->del($newUuid);
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * @return non-empty-string|false
+     */
+    private function copyPayload(Payload $payload): string|false
+    {
+        $destination = preg_replace('/^\w{8}/', '0000000d', $payload->uuid);
+        if (is_string($destination) === false || empty($destination)) {
+            $destination = '0000000d' . $payload->uuid;
+        }
+
+        if ($this->string->copy($payload->uuid, $destination, 900)) {
+            return $destination;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param non-empty-string $identity
+     */
+    private function isExceededAttempts(string $identity, Payload $payload, string $previousReason): bool
+    {
+        $maxExceededAttempts = 3;
+
+        try {
+            $pendingState = $this->streamGroup->pending($identity);
+        } catch (Throwable) {
+            return false;
+        }
+
+        return $pendingState['deliveryCount'] >= $maxExceededAttempts
+            && $this->pushDLQ(
+                $identity,
+                $payload,
+                sprintf(
+                    '[%d] The number of attempts has been exceeded. %s',
+                    $pendingState['deliveryCount'],
+                    $previousReason,
+                ),
+            );
     }
 }

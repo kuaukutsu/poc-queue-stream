@@ -18,3 +18,65 @@ which can be used to add functionality to the application without modifying the 
 ```shell
 composer require kuaukutsu/poc-queue-stream
 ```
+
+### Concept
+
+#### push
+
+- **XADD** записываем только идентификаторы
+- **STRING** полезную нагрузку записываем через string.set с коротким таймаутом, чтобы не было призраков
+- идентификатор stream.key выбирается согласно указанной схеме (SchemaInterface)
+- если запись в stream завершилась ошибкой, то удаляем payload (string.del) и возвращаем ошибку
+
+Для корректоной работы прежде чем пушить задачи в очередь необходимо:
+
+- либо запустить подписчиков,
+- либо создать группу (XGROUP CREATE) с подпиской на нужный стрим(ы)
+
+#### consume
+
+- подписчик читает стрим **XREADGROUP**, пробует получить сообщение из хранилища string.get и выполнить задачу.
+- если сообщения в хранилище нет, то выходим с ошибкой, стрим переносим в dead letter queue (DLQ).
+- если сообщение получено, но выполнение завершилось ошибкой, отправляем на повторный круг,
+  точнее оставляем в очереди (PEL); свободный консумер получит это сообщение позже **XAUTOCLAIM** и попробует выполнить
+  ещё раз, таких попыток по умолчанию будет 2, после третьей попытки сообщение переносим в DLQ.
+- если для консумера задан обработчик исключений (catch exception), то обработка ошибок лежит на клиентском ПО, 
+  т/е механизм DLQ работать не будет.
+- прочитанные сообщения "акаются" (**ACK**) пачками; так же вместе с командой ACK удаляются сообщения из хранилища. 
+
+#### чтиво
+
+- https://redis.io/docs/latest/develop/data-types/streams/
+- https://habr.com/ru/articles/456270/
+
+### Benchmark
+
+```
+make bench
+```
+
+```
+PHPBench (1.4.3) running benchmarks...
+with configuration file: /benchmark/phpbench.json
+with PHP version 8.3.17, xdebug ✔, opcache ✔
+
+\kuaukutsu\poc\queue\stream\benchmarks\PublisherRedisBench
+
+    benchAsWhile............................I4 - Mo32.201ms (±5.32%)
+    benchAsBatch............................I4 - Mo29.561ms (±1.30%)
+
+\kuaukutsu\poc\queue\stream\benchmarks\PublisherValkeyBench
+
+    benchAsWhile............................I4 - Mo31.663ms (±2.65%)
+    benchAsBatch............................I4 - Mo30.349ms (±3.98%)
+
+Subjects: 4, Assertions: 0, Failures: 0, Errors: 0
++----------------------+--------------+-----+------+-----+----------+----------+--------+
+| benchmark            | subject      | set | revs | its | mem_peak | mode     | rstdev |
++----------------------+--------------+-----+------+-----+----------+----------+--------+
+| PublisherRedisBench  | benchAsWhile |     | 10   | 5   | 1.983mb  | 32.201ms | ±5.32% |
+| PublisherRedisBench  | benchAsBatch |     | 10   | 5   | 2.044mb  | 29.561ms | ±1.30% |
+| PublisherValkeyBench | benchAsWhile |     | 10   | 5   | 1.983mb  | 31.663ms | ±2.65% |
+| PublisherValkeyBench | benchAsBatch |     | 10   | 5   | 2.037mb  | 30.349ms | ±3.98% |
++----------------------+--------------+-----+------+-----+----------+----------+--------+
+```

@@ -12,7 +12,6 @@ use kuaukutsu\queue\core\SchemaInterface;
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
  * @psalm-suppress MissingThrowsDocblock
- * @psalm-internal kuaukutsu\poc\queue\stream
  */
 final readonly class RedisStream
 {

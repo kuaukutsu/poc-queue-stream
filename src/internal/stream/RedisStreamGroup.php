@@ -10,12 +10,11 @@ use Amp\Redis\Protocol\QueryException;
 use Amp\Redis\RedisClient;
 use kuaukutsu\queue\core\exception\QueueConsumeException;
 use kuaukutsu\queue\core\SchemaInterface;
-use kuaukutsu\poc\queue\stream\ConsumerOptions;
+use kuaukutsu\poc\queue\stream\StreamOptions;
 
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
  * @psalm-suppress MissingThrowsDocblock
- * @psalm-internal kuaukutsu\poc\queue\stream
  */
 final readonly class RedisStreamGroup
 {
@@ -30,7 +29,7 @@ final readonly class RedisStreamGroup
     public function __construct(
         private RedisClient $client,
         private SchemaInterface $schema,
-        private ConsumerOptions $options,
+        private StreamOptions $options,
     ) {
         $this->key = StreamUtils::generateKey($schema);
     }
@@ -125,6 +124,7 @@ final readonly class RedisStreamGroup
      *     "elapsedMilliseconds": int,
      *     "deliveryCount": int,
      * }
+     * @see https://redis.io/docs/latest/commands/xpending/
      */
     public function pending(string $identity): array
     {
