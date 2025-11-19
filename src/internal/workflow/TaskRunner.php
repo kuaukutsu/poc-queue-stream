@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
 use Throwable;
+use Amp\CancelledException;
+use Amp\TimeoutCancellation;
 use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\QueueMessage;
 use kuaukutsu\poc\queue\stream\exception\WorkflowException;
@@ -13,6 +15,8 @@ use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
+
+use function Amp\async;
 
 /**
  * @note если задан обработчик исключений (tryCatch), считаем что отвественность за ошибки лежит на клиенте.
@@ -59,14 +63,29 @@ final readonly class TaskRunner
         }
 
         try {
-            $this->handler->handle($queueMessage);
+            async(
+                $this->handler->handle(...),
+                $queueMessage
+            )->await(new TimeoutCancellation(300));
+        } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
+            if ($ctx->tryCatch($message, $exception)) {
+                return true;
+            }
+
+            // Handler Timeout
+            return $this->pushDLQ($identity, $payload, $exception->getMessage());
         } catch (Throwable $exception) {
             if ($ctx->tryCatch($message, $exception)) {
                 return true;
             }
 
             return $maxExceededAttempts > 0
-                && $this->isExceededAttempts($identity, $payload, $exception->getMessage());
+                && $this->isExceededAttempts(
+                    $maxExceededAttempts,
+                    $identity,
+                    $payload,
+                    $exception->getMessage(),
+                );
         }
 
         return true;
@@ -114,12 +133,15 @@ final readonly class TaskRunner
     }
 
     /**
+     * @param positive-int $maxExceededAttempts
      * @param non-empty-string $identity
      */
-    private function isExceededAttempts(string $identity, Payload $payload, string $previousReason): bool
-    {
-        $maxExceededAttempts = 3;
-
+    private function isExceededAttempts(
+        int $maxExceededAttempts,
+        string $identity,
+        Payload $payload,
+        string $previousReason,
+    ): bool {
         try {
             $pendingState = $this->streamGroup->pending($identity);
         } catch (Throwable) {

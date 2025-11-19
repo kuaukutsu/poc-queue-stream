@@ -31,11 +31,9 @@ $task = new QueueTask(
 );
 
 $publisher->push($schema, $task);
-//$publisher->push($schema, $task);
-//$publisher->push($schema, $task);
 
 // range
-foreach (range(1, 10) as $item) {
+foreach (range(1, 100) as $item) {
     $publisher
         ->push(
             $schema,
