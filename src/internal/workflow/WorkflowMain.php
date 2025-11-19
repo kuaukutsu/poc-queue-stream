@@ -36,20 +36,9 @@ final readonly class WorkflowMain
 
         /** @phpstan-ignore while.alwaysTrue */
         while (true) {
-            if ($lastAction < strtotime('-30 seconds')) {
-                $ctx->defer(
-                    static function () use ($workflowClaim, $ctx): void {
-                        $workflowClaim($ctx);
-                    }
-                );
-
-                $lastAction = time();
-            }
-
             $list = [];
             foreach ($this->read($this->stream) as $identity => $payload) {
                 $list[] = async($fn(...), $this->action, $ctx, $identity, $payload);
-                $lastAction = time();
             }
 
             try {
@@ -59,6 +48,16 @@ final readonly class WorkflowMain
             }
 
             $ctx->sendAck();
+
+            if ($list === [] && $lastAction < strtotime('-30 seconds')) {
+                $ctx->defer(
+                    static function () use ($workflowClaim, $ctx): void {
+                        $workflowClaim($ctx);
+                    }
+                );
+
+                $lastAction = time();
+            }
         }
     }
 
