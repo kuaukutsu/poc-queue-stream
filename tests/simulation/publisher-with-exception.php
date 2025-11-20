@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 use kuaukutsu\poc\queue\stream\Builder;
 use kuaukutsu\poc\queue\stream\tests\stub\QueueSchemaStub;
+use kuaukutsu\queue\core\QueueContext;
 use kuaukutsu\queue\core\QueueTask;
 
 use function kuaukutsu\poc\queue\stream\tests\argument;
@@ -29,4 +30,4 @@ $task = new QueueTask(
     ],
 );
 
-$publisher->push($schema, $task);
+$publisher->push($schema, $task, QueueContext::make($schema)->withTimeout(30));

@@ -61,7 +61,7 @@ final readonly class RedisStreamGroup
     }
 
     /**
-     * @return ?array<array{0: non-empty-string, 1: array<non-empty-string, string[]>}>
+     * @return ?array<array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}>
      * @see https://redis.io/docs/latest/commands/xreadgroup/
      */
     public function read(): ?array
@@ -82,7 +82,7 @@ final readonly class RedisStreamGroup
 
         if (is_array($result)) {
             /**
-             * @var array<array{0: non-empty-string, 1: array<non-empty-string, string[]>}>
+             * @var array<array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}>
              */
             return $result;
         }
@@ -91,7 +91,7 @@ final readonly class RedisStreamGroup
     }
 
     /**
-     * @return null|array<empty>|array{0: non-empty-string, 1: array<non-empty-string, string[]>}
+     * @return null|array<empty>|array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}
      * @see https://redis.io/docs/latest/commands/xautoclaim/
      */
     public function autoclaim(string $start = '0-0'): ?array
@@ -109,7 +109,7 @@ final readonly class RedisStreamGroup
 
         if (is_array($result)) {
             /**
-             * @var array<empty>|array{0: non-empty-string, 1: array<non-empty-string, string[]>}
+             * @var array<empty>|array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}
              */
             return $result;
         }
