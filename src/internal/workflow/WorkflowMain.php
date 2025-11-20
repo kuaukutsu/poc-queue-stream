@@ -66,22 +66,29 @@ final readonly class WorkflowMain
      */
     private function read(RedisStreamGroup $command): iterable
     {
-        $batch = $command->read();
-        if ($batch === null || $batch === []) {
-            return;
-        }
-
-        /**
-         * @var array<array{0: non-empty-string, 1: string[]}> $src
-         */
-        $src = $batch[0][1] ?? [];
-        foreach ($src as [$identity, $payload]) {
-            $data = [];
-            foreach (array_chunk($payload, 2) as [$k, $v]) {
-                $data[$k] = $v;
+        $fn = static function (RedisStreamGroup $command): iterable {
+            $batch = $command->read();
+            if ($batch === null || $batch === []) {
+                return;
             }
 
-            yield $identity => Payload::fromPayload($data);
-        }
+            /**
+             * @var array<array{0: non-empty-string, 1: string[]}> $src
+             */
+            $src = $batch[0][1] ?? [];
+            foreach ($src as [$identity, $payload]) {
+                $data = [];
+                foreach (array_chunk($payload, 2) as [$k, $v]) {
+                    $data[$k] = $v;
+                }
+
+                yield $identity => Payload::fromPayload($data);
+            }
+        };
+
+        /**
+         * @var iterable<non-empty-string, Payload>
+         */
+        return async($fn(...), $command)->await();
     }
 }

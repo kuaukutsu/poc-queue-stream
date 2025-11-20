@@ -59,24 +59,29 @@ final readonly class WorkflowClaim
      */
     private function autoclaim(RedisStreamGroup $command): iterable
     {
-        $batch = $command->autoclaim();
-        if ($batch === null) {
-            return [];
-        }
-
-        /**
-         * @var array<array{0: non-empty-string, 1: string[]}> $src
-         */
-        $src = $batch[1] ?? [];
-        foreach ($src as [$identity, $payload]) {
-            $data = [];
-            foreach (array_chunk($payload, 2) as [$k, $v]) {
-                $data[$k] = $v;
+        $fn = static function (RedisStreamGroup $command): iterable {
+            $batch = $command->autoclaim();
+            if ($batch === null) {
+                return;
             }
 
-            yield $identity => Payload::fromPayload($data);
-        }
+            /**
+             * @var array<array{0: non-empty-string, 1: string[]}> $src
+             */
+            $src = $batch[1] ?? [];
+            foreach ($src as [$identity, $payload]) {
+                $data = [];
+                foreach (array_chunk($payload, 2) as [$k, $v]) {
+                    $data[$k] = $v;
+                }
 
-        return [];
+                yield $identity => Payload::fromPayload($data);
+            }
+        };
+
+        /**
+         * @var iterable<non-empty-string, Payload>
+         */
+        return async($fn(...), $command)->await();
     }
 }
