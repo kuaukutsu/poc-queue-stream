@@ -44,6 +44,8 @@ foreach (range(1, 100) as $item) {
                     'name' => 'test range',
                 ],
             ),
-            QueueContext::make($schema)->withExternal(['requestId' => $item])
+            QueueContext::make($schema)
+                ->withExternal(['requestId' => $item])
+                ->withTimeout(300)
         );
 }

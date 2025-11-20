@@ -62,11 +62,16 @@ final readonly class TaskRunner
             return $this->pushDLQ($identity, $payload, $exception->getMessage());
         }
 
+        $cancellation = null;
+        if ($queueMessage->context->timeout > 0) {
+            $cancellation = new TimeoutCancellation($queueMessage->context->timeout);
+        }
+
         try {
             async(
                 $this->handler->handle(...),
                 $queueMessage
-            )->await(new TimeoutCancellation(300));
+            )->await($cancellation);
         } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
             if ($ctx->tryCatch($message, $exception)) {
                 return true;
