@@ -19,17 +19,18 @@ use function Amp\Future\await;
 final readonly class WorkflowMain
 {
     public function __construct(
-        private TaskRunner $action,
+        private TaskHandler $action,
         private RedisStreamGroup $stream,
     ) {
     }
 
-    public function __invoke(Context $ctx, WorkflowClaim $workflowClaim): void
+    public function __invoke(Context $ctx, WorkflowClaim $claim, WorkflowCatch $catch): void
     {
         $lastAction = time();
-        $fn = static function (TaskRunner $action, Context $ctx, string $identity, Payload $payload): void {
+        $action = $this->action->run(...);
+        $workflow = static function (string $identity, Payload $payload) use ($action, $catch, $ctx): void {
             /** @var non-empty-string $identity */
-            if ($action->run($ctx, $identity, $payload)) {
+            if ($action($catch(...), $ctx, $identity, $payload)) {
                 $ctx->setAck($identity, $payload->uuid);
             }
         };
@@ -38,7 +39,7 @@ final readonly class WorkflowMain
         while (true) {
             $list = [];
             foreach ($this->read($this->stream) as $identity => $payload) {
-                $list[] = async($fn(...), $this->action, $ctx, $identity, $payload);
+                $list[] = async($workflow(...), $identity, $payload);
             }
 
             try {
@@ -51,8 +52,9 @@ final readonly class WorkflowMain
 
             if ($list === [] && $lastAction < strtotime('-30 seconds')) {
                 $ctx->defer(
-                    static function () use ($workflowClaim, $ctx): void {
-                        $workflowClaim($ctx);
+                    static function (string $callbackId) use ($claim, $ctx, $catch): void {
+                        $claim($ctx, $catch);
+                        $ctx->done($callbackId);
                     }
                 );
 
@@ -68,13 +70,10 @@ final readonly class WorkflowMain
     {
         $fn = static function (RedisStreamGroup $command): iterable {
             $batch = $command->read();
-            if ($batch === null || $batch === []) {
+            if ($batch === []) {
                 return;
             }
 
-            /**
-             * @var array<array{0: non-empty-string, 1: string[]}> $src
-             */
             $src = $batch[0][1] ?? [];
             foreach ($src as [$identity, $payload]) {
                 $data = [];

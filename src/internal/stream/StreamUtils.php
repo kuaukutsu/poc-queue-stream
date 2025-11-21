@@ -9,17 +9,28 @@ use kuaukutsu\queue\core\SchemaInterface;
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
  */
-final readonly class StreamUtils
+trait StreamUtils
 {
-    private function __construct()
-    {
-    }
-
     /**
      * @return non-empty-string
      */
-    public static function generateKey(SchemaInterface $schema): string
+    private function generateKey(SchemaInterface $schema): string
     {
         return 'queue:' . $schema->getRoutingKey();
+    }
+
+    /**
+     * @param array<non-empty-string, float|int|string> $payload
+     * @return list<non-empty-string|float|int|string>
+     */
+    private function preparePayload(array $payload): array
+    {
+        $args = [];
+        foreach ($payload as $argKey => $argValue) {
+            $args[] = $argKey;
+            $args[] = $argValue;
+        }
+
+        return $args;
     }
 }

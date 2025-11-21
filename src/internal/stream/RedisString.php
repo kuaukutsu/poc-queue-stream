@@ -13,9 +13,8 @@ use Amp\Redis\RedisClient;
  */
 final readonly class RedisString
 {
-    public function __construct(
-        private RedisClient $client,
-    ) {
+    public function __construct(private RedisClient $client)
+    {
     }
 
     /**

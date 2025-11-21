@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace kuaukutsu\poc\queue\stream\internal;
 
 use Closure;
-use Throwable;
 use Revolt\EventLoop;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
+use kuaukutsu\queue\core\SchemaInterface;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
@@ -30,33 +30,33 @@ final class Context
      */
     private array $payloadList = [];
 
+    /**
+     * @param non-negative-int $maxExceededAttempts
+     */
     public function __construct(
+        public readonly SchemaInterface $schema,
+        private readonly RedisStreamGroup $streamGroup,
         private readonly RedisString $string,
-        private readonly RedisStreamGroup $stream,
-        private readonly ?Closure $catch = null,
+        public readonly int $maxExceededAttempts = 3,
     ) {
     }
 
     /**
-     * @param ?callable(string, Throwable):void $catch
+     * @param non-empty-string $uuid
      */
-    public function withCatch(?callable $catch): self
+    public function getData(string $uuid): ?string
     {
-        if ($catch === null) {
-            return $this;
-        }
-
-        return new Context($this->string, $this->stream, $catch(...));
+        return $this->string->get($uuid);
     }
 
-    public function tryCatch(string $message, Throwable $throwable): bool
+    /**
+     * @param non-empty-string $source
+     * @param non-empty-string $destination
+     * @param positive-int $ttl
+     */
+    public function copyData(string $source, string $destination, int $ttl = 600): bool
     {
-        if (is_callable($this->catch)) {
-            call_user_func($this->catch, $message, $throwable);
-            return true;
-        }
-
-        return false;
+        return $this->string->copy($source, $destination, $ttl);
     }
 
     /**
@@ -72,7 +72,7 @@ final class Context
     public function sendAck(): void
     {
         if ($this->identityList !== []) {
-            $this->stream->ack(array_shift($this->identityList), ...$this->identityList);
+            $this->streamGroup->ack(array_shift($this->identityList), ...$this->identityList);
             $this->identityList = [];
         }
 
@@ -90,9 +90,14 @@ final class Context
         $callbackId = EventLoop::defer($callback);
         $this->callbackList[$callbackId] = true;
         // truncation tail
-        if (count($this->callbackList) > 3) {
-            $this->callbackList = array_slice($this->callbackList, -3, null, true);
+        if (count($this->callbackList) > 32) {
+            $this->callbackList = array_slice($this->callbackList, -32, null, true);
         }
+    }
+
+    public function done(string $callbackId): void
+    {
+        unset($this->callbackList[$callbackId]);
     }
 
     public function cancel(): void
@@ -101,5 +106,7 @@ final class Context
         foreach ($this->callbackList as $callbackId => $_) {
             EventLoop::cancel($callbackId);
         }
+
+        $this->streamGroup->delConsumer();
     }
 }

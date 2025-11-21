@@ -84,7 +84,7 @@ publisher:
 
 consumer:
 	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w /tests/simulation cli \
-		php worker.php --schema=high
+		php worker-with-catch.php --schema=high
 
 bench: ## bench
 	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / cli \

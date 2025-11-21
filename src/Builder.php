@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream;
 
+use Closure;
 use Override;
 use Amp\Redis\RedisConfig;
 use Amp\Redis\RedisException;
@@ -12,10 +13,6 @@ use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\handler\Pipeline;
 use kuaukutsu\queue\core\interceptor\InterceptorInterface;
 use kuaukutsu\queue\core\BuilderInterface;
-use kuaukutsu\queue\core\SchemaInterface;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 
 use function Amp\Redis\createRedisClient;
 
@@ -29,6 +26,8 @@ final class Builder implements BuilderInterface
     private StreamOptions $options;
 
     private HandlerInterface $handler;
+
+    private ?Closure $catch = null;
 
     /**
      * @throws RedisException
@@ -61,6 +60,14 @@ final class Builder implements BuilderInterface
     }
 
     #[Override]
+    public function withCatch(Closure $catch): BuilderInterface
+    {
+        $clone = clone $this;
+        $clone->catch = $catch;
+        return $clone;
+    }
+
+    #[Override]
     public function withInterceptors(InterceptorInterface ...$interceptor): self
     {
         $clone = clone $this;
@@ -75,15 +82,8 @@ final class Builder implements BuilderInterface
     }
 
     #[Override]
-    public function buildConsumer(SchemaInterface $schema): Consumer
+    public function buildConsumer(): Consumer
     {
-        $client = createRedisClient($this->config);
-
-        return new Consumer(
-            new RedisStream($client, $schema),
-            new RedisStreamGroup($client, $schema, $this->options),
-            new RedisString($client),
-            $this->handler,
-        );
+        return new Consumer(createRedisClient($this->config), $this->options, $this->handler, $this->catch);
     }
 }

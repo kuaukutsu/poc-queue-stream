@@ -20,6 +20,7 @@ final readonly class RedisStreamGroup
 {
     use ForbidCloning;
     use ForbidSerialization;
+    use StreamUtils;
 
     /**
      * @var non-empty-string
@@ -28,10 +29,10 @@ final readonly class RedisStreamGroup
 
     public function __construct(
         private RedisClient $client,
-        private SchemaInterface $schema,
         private StreamOptions $options,
+        private SchemaInterface $schema,
     ) {
-        $this->key = StreamUtils::generateKey($schema);
+        $this->key = $this->generateKey($this->schema);
     }
 
     /**
@@ -49,7 +50,7 @@ final readonly class RedisStreamGroup
                 '$',
                 'MKSTREAM',
             );
-        } catch (QueryException $e) {
+        } /** @noinspection PhpRedundantCatchClauseInspection */ catch (QueryException $e) {
             if (str_contains($e->getMessage(), 'BUSYGROUP Consumer Group name already exists')) {
                 return false;
             }
@@ -61,10 +62,36 @@ final readonly class RedisStreamGroup
     }
 
     /**
-     * @return ?array<array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}>
+     * @param array<non-empty-string, float|int|string> $payload
+     * @return ?non-empty-string
+     * @see https://redis.io/docs/latest/commands/xadd/
+     */
+    public function addDLQ(array $payload): ?string
+    {
+        $key = $this->key;
+        if (str_contains($this->options->templateDLQ, '%s')) {
+            $key = sprintf($this->options->templateDLQ, $key);
+        }
+
+        $identity = $this->client->execute(
+            'XADD',
+            $key,
+            '*',
+            ...$this->preparePayload($payload)
+        );
+
+        if (is_string($identity) && $identity !== '') {
+            return $identity;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{}|array<array{0: non-empty-string, 1: ?list<array{0: non-empty-string, 1: string[]}>}>
      * @see https://redis.io/docs/latest/commands/xreadgroup/
      */
-    public function read(): ?array
+    public function read(): array
     {
         $result = $this->client->execute(
             'XREADGROUP',
@@ -82,19 +109,19 @@ final readonly class RedisStreamGroup
 
         if (is_array($result)) {
             /**
-             * @var array<array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}>
+             * @var array<array{0: non-empty-string, 1: ?list<array{0: non-empty-string, 1: string[]}>}>
              */
             return $result;
         }
 
-        return null;
+        return [];
     }
 
     /**
-     * @return null|array<empty>|array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}
+     * @return array{}|array{0: non-empty-string, 1: ?list<array{0: non-empty-string, 1: string[]}>}
      * @see https://redis.io/docs/latest/commands/xautoclaim/
      */
-    public function autoclaim(string $start = '0-0'): ?array
+    public function autoclaim(string $start = '0-0'): array
     {
         $result = $this->client->execute(
             'XAUTOCLAIM',
@@ -109,12 +136,12 @@ final readonly class RedisStreamGroup
 
         if (is_array($result)) {
             /**
-             * @var array<empty>|array{0: non-empty-string, 1: array{0: non-empty-string, 1: string[]}}
+             * @var array{0: non-empty-string, 1: ?list<array{0: non-empty-string, 1: string[]}>}
              */
             return $result;
         }
 
-        return null;
+        return [];
     }
 
     /**

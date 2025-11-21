@@ -7,9 +7,10 @@
 
 declare(strict_types=1);
 
-use kuaukutsu\poc\queue\stream\Builder;
+use kuaukutsu\queue\core\interceptor\ArgumentsVerifyInterceptor;
 use kuaukutsu\poc\queue\stream\tests\stub\QueueSchemaStub;
 use kuaukutsu\poc\queue\stream\tests\stub\TryCatchInterceptor;
+use kuaukutsu\poc\queue\stream\Builder;
 
 use function Amp\trapSignal;
 use function kuaukutsu\poc\queue\stream\tests\argument;
@@ -20,16 +21,18 @@ $schema = QueueSchemaStub::from((string)argument('schema', 'low'));
 echo 'consumer run: ' . $schema->getRoutingKey() . PHP_EOL;
 
 $consumer = $builder
+    ->withCatch(
+        static function (?string $message, Throwable $exception): void {
+            echo sprintf("data: %s\nerror: %s", $message, $exception->getMessage());
+        }
+    )
     ->withInterceptors(
+        new ArgumentsVerifyInterceptor(),
         new TryCatchInterceptor(),
     )
-    ->buildConsumer($schema);
+    ->buildConsumer();
 
-$consumer->consume(
-    static function (string $message, Throwable $exception): void {
-        echo sprintf("data: %s\nerror: %s", $message, $exception->getMessage());
-    }
-);
+$consumer->consume($schema);
 
 /** @noinspection PhpUnhandledExceptionInspection */
 trapSignal([SIGTERM, SIGINT]);

@@ -22,8 +22,8 @@ $builder = (new Builder(new FactoryProxy(new Container())))
         RedisConfig::fromUri('tcp://valkey:6379')
     );
 
-$consumer = $builder->buildConsumer($schema);
-$consumer->consume();
+$consumer = $builder->buildConsumer();
+$consumer->consume($schema);
 
 /** @noinspection PhpUnhandledExceptionInspection */
 trapSignal([SIGTERM, SIGINT]);
