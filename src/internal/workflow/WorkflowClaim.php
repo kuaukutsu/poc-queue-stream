@@ -60,6 +60,9 @@ final readonly class WorkflowClaim
      */
     private function autoclaim(RedisStreamGroup $command): iterable
     {
+        /**
+         * @return iterable<non-empty-string, Payload>
+         */
         $fn = static function (RedisStreamGroup $command): iterable {
             $batch = $command->autoclaim();
             if ($batch === []) {
@@ -78,7 +81,7 @@ final readonly class WorkflowClaim
         };
 
         /**
-         * @var iterable<non-empty-string, Payload>
+         * @phpstan-var iterable<non-empty-string, Payload>
          */
         return async($fn(...), $command)->await();
     }

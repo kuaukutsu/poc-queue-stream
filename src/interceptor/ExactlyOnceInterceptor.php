@@ -29,7 +29,7 @@ final readonly class ExactlyOnceInterceptor implements InterceptorInterface
     public function intercept(QueueMessage $message, HandlerInterface $handler): void
     {
         $options = (new SetOptions())->withTtl($this->ttl)->withoutOverwrite();
-        $isSave = $this->redis->set('eac' . $message->task->getUuid(), '1', $options);
+        $isSave = $this->redis->set($message->getIdempotencyKey(), '1', $options);
         if ($isSave) {
             $handler->handle($message);
         }
