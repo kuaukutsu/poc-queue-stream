@@ -68,6 +68,9 @@ final readonly class WorkflowMain
      */
     private function read(RedisStreamGroup $command): iterable
     {
+        /**
+         * @return iterable<non-empty-string, Payload>
+         */
         $fn = static function (RedisStreamGroup $command): iterable {
             $batch = $command->read();
             if ($batch === []) {
@@ -86,7 +89,7 @@ final readonly class WorkflowMain
         };
 
         /**
-         * @var iterable<non-empty-string, Payload>
+         * @phpstan-var iterable<non-empty-string, Payload>
          */
         return async($fn(...), $command)->await();
     }

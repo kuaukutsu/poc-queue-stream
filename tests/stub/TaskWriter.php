@@ -16,9 +16,10 @@ final readonly class TaskWriter
         // check  non-blocking
         EventLoop::delay($delay, static function () use ($id, $name, $context): void {
             echo sprintf(
-                "task: %d, %s, route: %s, date: %s\r\n",
+                "task: %d, %s, attempt: %d, route: %s, date: %s\r\n",
                 $id,
                 $name,
+                $context->attempt,
                 $context->routingKey,
                 $context->createdAt,
             );

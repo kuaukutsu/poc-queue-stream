@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace kuaukutsu\poc\queue\stream\tests\stub;
 
 use Override;
+use LogicException;
 use kuaukutsu\queue\core\QueueContext;
 use kuaukutsu\queue\core\TaskInterface;
 
@@ -20,6 +21,10 @@ final readonly class QueueHandlerStub implements TaskInterface
     #[Override]
     public function handle(QueueContext $context): void
     {
+        if ($context->attempt === 1 && random_int(0, 1) === 1) {
+            throw new LogicException('Random exception.');
+        }
+
         $this->writer->print($this->id, $this->name, $context);
     }
 }

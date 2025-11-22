@@ -50,6 +50,16 @@ final class Context
     }
 
     /**
+     * @param non-empty-string $uuid
+     * @param non-empty-string $value
+     * @param positive-int $ttl
+     */
+    public function setData(string $uuid, string $value, int $ttl = 600): bool
+    {
+        return $this->string->set($uuid, $value, $ttl);
+    }
+
+    /**
      * @param non-empty-string $source
      * @param non-empty-string $destination
      * @param positive-int $ttl

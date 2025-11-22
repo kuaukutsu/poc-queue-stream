@@ -6,6 +6,7 @@ namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
 use Throwable;
 use Amp\CancelledException;
+use kuaukutsu\queue\core\QueueMessage;
 use kuaukutsu\poc\queue\stream\exception\WorkflowException;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 use kuaukutsu\poc\queue\stream\internal\Context;
@@ -43,7 +44,7 @@ final readonly class WorkflowCatch
         }
 
         $pending = $this->pending($this->stream, $identity);
-        $attempts = $pending['deliveryCount'] ?? 0;
+        $attempts = max(1, $pending['deliveryCount'] ?? 1);
         if ($attempts >= $ctx->maxExceededAttempts) {
             $this->dlq(
                 $ctx,
@@ -58,31 +59,62 @@ final readonly class WorkflowCatch
 
             $ctx->setAck($identity, $payload->uuid);
             $ctx->sendAck();
+            return;
         }
+
+        $this->incrAttempt($ctx, $payload, $attempts);
     }
 
     private function dlq(Context $ctx, string $identity, Payload $payload, string $reason): void
+    {
+        try {
+            $this->stream->addDLQ(
+                [
+                    'id' => $identity,
+                    'reason' => $reason,
+                    'uuid' => $this->copyData($ctx, $payload),
+                    'target' => $payload->target,
+                ],
+            );
+        } catch (Throwable) {
+        }
+    }
+
+    /**
+     * @return non-empty-string
+     */
+    private function copyData(Context $ctx, Payload $payload): string
     {
         $newUuid = preg_replace('/^\w{8}/', '0000000d', $payload->uuid);
         if (is_string($newUuid) === false || empty($newUuid)) {
             $newUuid = '0000000d' . $payload->uuid;
         }
 
-        if ($ctx->copyData($payload->uuid, $newUuid, 1800) === false) {
+        return $ctx->copyData($payload->uuid, $newUuid, 1800) ? $newUuid : $payload->uuid;
+    }
+
+    /**
+     * @param positive-int $currentAttempt
+     */
+    private function incrAttempt(Context $ctx, Payload $payload, int $currentAttempt): void
+    {
+        $message = $ctx->getData($payload->uuid);
+        if ($message === null || $message === '') {
             return;
         }
 
         try {
-            $this->stream->addDLQ(
-                [
-                    'id' => $identity,
-                    'reason' => $reason,
-                    'uuid' => $newUuid,
-                    'target' => $payload->target,
-                ],
+            $queueMessage = QueueMessage::makeFromMessage($message);
+            $ctx->setData(
+                $payload->uuid,
+                QueueMessage::makeMessage(
+                    $queueMessage->task,
+                    $queueMessage->context->incrAttempt(++$currentAttempt),
+                )
             );
+            return;
         } catch (Throwable) {
-            $ctx->copyData($newUuid, $payload->uuid);
+            return;
         }
     }
 
@@ -93,10 +125,15 @@ final readonly class WorkflowCatch
      *       "deliveryCount": int,
      *   }
      */
-    public function pending(RedisStreamGroup $command, string $identity): array
+    private function pending(RedisStreamGroup $command, string $identity): array
     {
         /**
          * @param non-empty-string $identity
+         * @return array{}|array{
+         *         "consumer": string,
+         *         "elapsedMilliseconds": int,
+         *         "deliveryCount": int,
+         *     }
          */
         $fn = static function (RedisStreamGroup $command, string $identity): array {
             /** @var non-empty-string $identity */
@@ -108,7 +145,7 @@ final readonly class WorkflowCatch
         };
 
         /**
-         * @var array{}|array{
+         * @phpstan-var array{}|array{
          *        "consumer": string,
          *        "elapsedMilliseconds": int,
          *        "deliveryCount": int,

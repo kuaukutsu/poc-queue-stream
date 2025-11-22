@@ -120,17 +120,6 @@ services:
       - vredis:/data
     logging: *default-logging
 
-  inside:
-    container_name: queue_stream_inside
-    image: redis/redisinsight:latest
-    profiles: [ "serve" ]
-    ports:
-      - "5540:5540"
-    environment:
-      - RI_stream_HOST=redis
-      - RI_stream_PORT=6379
-    logging: *default-logging
-
   valkey:
     container_name: queue_stream_valkey
     profiles: [ "serve" ]
@@ -161,6 +150,17 @@ services:
       retries: 5
     volumes:
       - vvalkey:/data
+    logging: *default-logging
+
+  inside:
+    container_name: queue_stream_inside
+    image: redis/redisinsight:latest
+    profiles: [ "serve" ]
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_stream_HOST=redis
+      - RI_stream_PORT=6379
     logging: *default-logging
 
 configs:
