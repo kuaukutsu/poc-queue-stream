@@ -17,76 +17,41 @@ final readonly class RedisStream
 {
     use ForbidCloning;
     use ForbidSerialization;
+    use StreamUtils;
 
-    /**
-     * @var non-empty-string
-     */
-    private string $key;
-
-    public function __construct(
-        private RedisClient $client,
-        SchemaInterface $schema,
-    ) {
-        $this->key = StreamUtils::generateKey($schema);
+    public function __construct(private RedisClient $client)
+    {
     }
 
     /**
      * @param array<non-empty-string, float|int|string> $payload
      * @param positive-int|false $maxlen
+     * @return ?non-empty-string
      * @see https://redis.io/docs/latest/commands/xadd/
      */
-    public function add(array $payload, int|false $maxlen = 100_000): ?string
+    public function add(SchemaInterface $schema, array $payload, int|false $maxlen = 100_000): ?string
     {
-        $args = $this->preparePayload($payload);
-
         $identity = $maxlen > 0
             ? $this->client->execute(
                 'XADD',
-                $this->key,
+                $this->generateKey($schema),
                 'MAXLEN',
                 '~',
                 $maxlen,
                 '*',
-                ...$args
+                ...$this->preparePayload($payload)
             )
             : $this->client->execute(
                 'XADD',
-                $this->key,
+                $this->generateKey($schema),
                 '*',
-                ...$args
+                ...$this->preparePayload($payload)
             );
 
-        if (is_string($identity)) {
+        if (is_string($identity) && $identity !== '') {
             return $identity;
         }
 
         return null;
-    }
-
-    public function dlq(array $payload): ?string
-    {
-        $identity = $this->client->execute(
-            'XADD',
-            $this->key . ':dlq',
-            '*',
-            ...$this->preparePayload($payload)
-        );
-
-        if (is_string($identity)) {
-            return $identity;
-        }
-
-        return null;
-    }
-
-    private function preparePayload(array $payload): array
-    {
-        $args = [];
-        foreach ($payload as $argKey => $argValue) {
-            $args[] = $argKey;
-            $args[] = $argValue;
-        }
-
-        return $args;
     }
 }

@@ -6,28 +6,33 @@ namespace kuaukutsu\poc\queue\stream;
 
 use Override;
 use Throwable;
-use WeakMap;
 use Amp\Redis\RedisClient;
-use kuaukutsu\poc\queue\stream\internal\Payload;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
 use kuaukutsu\queue\core\exception\QueuePublishException;
 use kuaukutsu\queue\core\PublisherInterface;
 use kuaukutsu\queue\core\QueueContext;
 use kuaukutsu\queue\core\QueueMessage;
 use kuaukutsu\queue\core\QueueTask;
 use kuaukutsu\queue\core\SchemaInterface;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
+use kuaukutsu\poc\queue\stream\internal\Payload;
+
+use function Amp\async;
+use function Amp\Future\await;
 
 /**
  * @api
  */
-final class Publisher implements PublisherInterface
+final readonly class Publisher implements PublisherInterface
 {
-    private WeakMap $map;
+    private RedisStream $stream;
 
-    public function __construct(private readonly RedisClient $client)
+    private RedisString $string;
+
+    public function __construct(RedisClient $redis)
     {
-        $this->map = new WeakMap();
+        $this->stream = new RedisStream($redis);
+        $this->string = new RedisString($redis);
     }
 
     /**
@@ -37,45 +42,32 @@ final class Publisher implements PublisherInterface
     #[Override]
     public function push(SchemaInterface $schema, QueueTask $task, ?QueueContext $context = null): string
     {
-        $storage = new RedisString($this->client);
-        $storage->set(
+        $this->string->set(
             $task->getUuid(),
             QueueMessage::makeMessage($task, $context ?? QueueContext::make($schema)),
         );
 
         try {
-            $this->makeStream($schema)->add(
-                Payload::fromTask($task)->toArray()
-            );
+            $this->stream->add($schema, Payload::fromTask($task)->toArray());
         } catch (Throwable $exception) {
-            $storage->del($task->getUuid());
+            $this->string->del($task->getUuid());
             throw new QueuePublishException($schema, $exception);
         }
 
         return $task->getUuid();
     }
 
-    /**
-     * @param list<QueueTask> $taskBatch
-     * @return list<non-empty-string>
-     * @throws QueuePublishException
-     */
     #[Override]
     public function pushBatch(SchemaInterface $schema, array $taskBatch, ?QueueContext $context = null): array
     {
-        $list = [];
+        $groupAwait = [];
         foreach ($taskBatch as $task) {
-            $list[] = $this->push($schema, $task, $context);
+            $groupAwait[] = async($this->push(...), $schema, $task, $context);
         }
 
-        return $list;
-    }
-
-    private function makeStream(SchemaInterface $schema): RedisStream
-    {
         /**
-         * @var RedisStream
+         * @var list<non-empty-string>
          */
-        return $this->map[$schema] ??= new RedisStream($this->client, $schema);
+        return await($groupAwait);
     }
 }

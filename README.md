@@ -51,6 +51,82 @@ composer require kuaukutsu/poc-queue-stream
 - https://redis.io/docs/latest/develop/data-types/streams/
 - https://habr.com/ru/articles/456270/
 
+### example
+
+`tests/simulation`
+
+#### common
+
+```php
+// необходим для внедрения зависимостей в объект задачи
+$container = new Container();
+$builder = (new Builder(new FactoryProxy($container)))
+    ->withConfig(
+        RedisConfig::fromUri('tcp://redis:6379')
+    );
+    
+// например из аргументов получаем схему - название очереди
+$schema = QueueSchemaStub::from((string)argument('schema', 'low'));
+```
+
+#### publish
+
+```php
+// где-то в своём проекте (app), через Interface и Decorator заводим сервис PublisherInterface
+$publisher = $builder->buildPublisher();
+
+// создание отложенной задачи
+$task = new QueueTask(
+    target: QueueHandlerStub::class,
+    arguments: [
+        'id' => 1,
+        'name' => 'test name',
+    ],
+);
+
+$publisher->push($schema, $task);
+```
+
+Или массовая публикация
+```php
+$batch = [];
+foreach (range(1, 100) as $item) {
+    $batch[] = new QueueTask(
+        target: QueueHandlerStub::class,
+        arguments: [
+            'id' => $item,
+            'name' => 'test batch',
+        ],
+    );
+}
+
+$publisher->pushBatch($schema, $batch);
+```
+
+#### consume
+
+consumer.php
+```php
+$consumer = $builder
+    // задаём обработчик ошибок, если необходимо и не устраивает глобальный TryCatchInterceptor
+    ->withCatch(
+        static function (?string $message, Throwable $exception): void {
+            echo sprintf("data: %s\nerror: %s", $message, $exception->getMessage());
+        }
+    )
+    ->withInterceptors(
+        new ArgumentsVerifyInterceptor(),
+        new ExactlyOnceInterceptor(createRedisClient('redis://redis:6379')),
+        new TryCatchInterceptor(),
+    )
+    ->buildConsumer();
+    
+$consumer->consume($schema);
+trapSignal([SIGTERM, SIGINT]);
+$consumer->disconnect();
+exit(0);
+```
+
 ### Benchmark
 
 ```
@@ -64,21 +140,21 @@ with PHP version 8.3.17, xdebug ✔, opcache ✔
 
 \kuaukutsu\poc\queue\stream\benchmarks\PublisherRedisBench
 
-    benchAsWhile............................I4 - Mo32.201ms (±5.32%)
-    benchAsBatch............................I4 - Mo29.561ms (±1.30%)
+    benchAsWhile............................I4 - Mo29.287ms (±15.55%)
+    benchAsBatch............................I4 - Mo17.785ms (±2.50%)
 
 \kuaukutsu\poc\queue\stream\benchmarks\PublisherValkeyBench
 
-    benchAsWhile............................I4 - Mo31.663ms (±2.65%)
-    benchAsBatch............................I4 - Mo30.349ms (±3.98%)
+    benchAsWhile............................I4 - Mo30.377ms (±8.72%)
+    benchAsBatch............................I4 - Mo17.267ms (±3.16%)
 
 Subjects: 4, Assertions: 0, Failures: 0, Errors: 0
-+----------------------+--------------+-----+------+-----+----------+----------+--------+
-| benchmark            | subject      | set | revs | its | mem_peak | mode     | rstdev |
-+----------------------+--------------+-----+------+-----+----------+----------+--------+
-| PublisherRedisBench  | benchAsWhile |     | 10   | 5   | 1.983mb  | 32.201ms | ±5.32% |
-| PublisherRedisBench  | benchAsBatch |     | 10   | 5   | 2.044mb  | 29.561ms | ±1.30% |
-| PublisherValkeyBench | benchAsWhile |     | 10   | 5   | 1.983mb  | 31.663ms | ±2.65% |
-| PublisherValkeyBench | benchAsBatch |     | 10   | 5   | 2.037mb  | 30.349ms | ±3.98% |
-+----------------------+--------------+-----+------+-----+----------+----------+--------+
++----------------------+--------------+-----+------+-----+----------+----------+---------+
+| benchmark            | subject      | set | revs | its | mem_peak | mode     | rstdev  |
++----------------------+--------------+-----+------+-----+----------+----------+---------+
+| PublisherRedisBench  | benchAsWhile |     | 10   | 5   | 2.053mb  | 29.287ms | ±15.55% |
+| PublisherRedisBench  | benchAsBatch |     | 10   | 5   | 4.589mb  | 17.785ms | ±2.50%  |
+| PublisherValkeyBench | benchAsWhile |     | 10   | 5   | 2.046mb  | 30.377ms | ±8.72%  |
+| PublisherValkeyBench | benchAsBatch |     | 10   | 5   | 4.589mb  | 17.267ms | ±3.16%  |
++----------------------+--------------+-----+------+-----+----------+----------+---------+
 ```

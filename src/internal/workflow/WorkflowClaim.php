@@ -19,16 +19,17 @@ use function Amp\Future\await;
 final readonly class WorkflowClaim
 {
     public function __construct(
-        private TaskRunner $action,
+        private TaskHandler $action,
         private RedisStreamGroup $stream,
     ) {
     }
 
-    public function __invoke(Context $ctx): void
+    public function __invoke(Context $ctx, WorkflowCatch $catch): void
     {
-        $fn = static function (TaskRunner $action, Context $ctx, string $identity, Payload $payload): void {
+        $action = $this->action->run(...);
+        $workflow = static function (string $identity, Payload $payload) use ($action, $catch, $ctx): void {
             /** @var non-empty-string $identity */
-            if ($action->run($ctx, $identity, $payload, 3)) {
+            if ($action($catch(...), $ctx, $identity, $payload)) {
                 $ctx->setAck($identity, $payload->uuid);
             }
         };
@@ -36,7 +37,7 @@ final readonly class WorkflowClaim
         while (true) {
             $list = [];
             foreach ($this->autoclaim($this->stream) as $identity => $payload) {
-                $list[] = async($fn(...), $this->action, $ctx, $identity, $payload);
+                $list[] = async($workflow(...), $identity, $payload);
             }
 
             if ($list === []) {
@@ -61,13 +62,10 @@ final readonly class WorkflowClaim
     {
         $fn = static function (RedisStreamGroup $command): iterable {
             $batch = $command->autoclaim();
-            if ($batch === null) {
+            if ($batch === []) {
                 return;
             }
 
-            /**
-             * @var array<array{0: non-empty-string, 1: string[]}> $src
-             */
             $src = $batch[1] ?? [];
             foreach ($src as [$identity, $payload]) {
                 $data = [];

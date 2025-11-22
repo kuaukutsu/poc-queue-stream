@@ -20,31 +20,20 @@ require dirname(__DIR__) . '/bootstrap.php';
 $schema = QueueSchemaStub::from((string)argument('schema', 'low'));
 echo 'publisher run: ' . $schema->getRoutingKey() . PHP_EOL;
 
-$publisher = $builder->buildPublisher();
-
-$task = new QueueTask(
-    target: QueueHandlerStub::class,
-    arguments: [
-        'id' => 1,
-        'name' => 'test name',
-    ],
-);
-
-$publisher->push($schema, $task);
-
-// range
+$batch = [];
 foreach (range(1, 100) as $item) {
-    $publisher->push(
-        $schema,
-        new QueueTask(
-            target: QueueHandlerStub::class,
-            arguments: [
-                'id' => $item,
-                'name' => 'test range',
-            ],
-        ),
-        QueueContext::make($schema)
-            ->withExternal(['requestId' => $item])
-            ->withTimeout(300)
+    $batch[] = new QueueTask(
+        target: QueueHandlerStub::class,
+        arguments: [
+            'id' => $item,
+            'name' => 'test batch',
+        ],
     );
 }
+
+$publisher = $builder->buildPublisher();
+$publisher->pushBatch(
+    $schema,
+    $batch,
+    QueueContext::make($schema)
+);
