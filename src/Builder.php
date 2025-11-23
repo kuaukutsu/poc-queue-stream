@@ -6,6 +6,7 @@ namespace kuaukutsu\poc\queue\stream;
 
 use Closure;
 use Override;
+use Throwable;
 use Amp\Redis\RedisConfig;
 use Amp\Redis\RedisException;
 use kuaukutsu\queue\core\handler\FactoryInterface;
@@ -13,6 +14,8 @@ use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\handler\Pipeline;
 use kuaukutsu\queue\core\interceptor\InterceptorInterface;
 use kuaukutsu\queue\core\BuilderInterface;
+use kuaukutsu\poc\queue\stream\event\EventDispatcher;
+use kuaukutsu\poc\queue\stream\event\EventSubscriberInterface;
 
 use function Amp\Redis\createRedisClient;
 
@@ -27,6 +30,14 @@ final class Builder implements BuilderInterface
 
     private HandlerInterface $handler;
 
+    /**
+     * @var EventSubscriberInterface[]
+     */
+    private array $eventSubscribers = [];
+
+    /**
+     * @var ?Closure(?string, Throwable):void
+     */
     private ?Closure $catch = null;
 
     /**
@@ -59,6 +70,13 @@ final class Builder implements BuilderInterface
         return $clone;
     }
 
+    public function withSubscribers(EventSubscriberInterface ...$subscribers): self
+    {
+        $clone = clone $this;
+        $clone->eventSubscribers = $subscribers;
+        return $clone;
+    }
+
     #[Override]
     public function withCatch(Closure $catch): BuilderInterface
     {
@@ -84,6 +102,12 @@ final class Builder implements BuilderInterface
     #[Override]
     public function buildConsumer(): Consumer
     {
-        return new Consumer(createRedisClient($this->config), $this->options, $this->handler, $this->catch);
+        return new Consumer(
+            createRedisClient($this->config),
+            $this->options,
+            new EventDispatcher($this->eventSubscribers),
+            $this->handler,
+            $this->catch,
+        );
     }
 }

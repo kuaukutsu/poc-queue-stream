@@ -23,6 +23,9 @@ use function Amp\async;
  */
 final readonly class TaskHandler
 {
+    /**
+     * @param ?Closure(?string, Throwable):void $catch
+     */
     public function __construct(
         private HandlerInterface $handler,
         private ?Closure $catch,
@@ -80,7 +83,7 @@ final readonly class TaskHandler
         try {
             async(
                 $this->handler->handle(...),
-                $queueMessage
+                $queueMessage,
             )->await($cancellation);
         } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
             if ($this->tryCatch($message, $exception)) {
@@ -118,7 +121,7 @@ final readonly class TaskHandler
     private function tryCatch(?string $message, Throwable $throwable): bool
     {
         if (is_callable($this->catch)) {
-            call_user_func($this->catch, $message, $throwable);
+            async($this->catch, $message, $throwable);
             return true;
         }
 

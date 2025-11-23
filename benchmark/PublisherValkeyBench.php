@@ -42,18 +42,17 @@ final class PublisherValkeyBench
 
         // range
         foreach (range(1, 100) as $item) {
-            $this->publisher
-                ->push(
-                    $schema,
-                    new QueueTask(
-                        target: QueueHandlerStub::class,
-                        arguments: [
-                            'id' => $item,
-                            'name' => 'bench range',
-                        ],
-                    ),
-                    QueueContext::make($schema)
-                );
+            $this->publisher->push(
+                $schema,
+                new QueueTask(
+                    target: QueueHandlerStub::class,
+                    arguments: [
+                        'id' => $item,
+                        'name' => 'bench range',
+                    ],
+                ),
+                QueueContext::make($schema)
+            );
         }
     }
 
@@ -72,11 +71,10 @@ final class PublisherValkeyBench
             );
         }
 
-        $this->publisher
-            ->pushBatch(
-                $schema,
-                $batch,
-                QueueContext::make($schema)
-            );
+        $this->publisher->pushBatch(
+            $schema,
+            $batch,
+            QueueContext::make($schema)
+        );
     }
 }

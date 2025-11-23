@@ -18,7 +18,8 @@
     "php": "^8.3",
     "ext-redis": "*",
     "amphp/redis": "^2.0",
-    "kuaukutsu/queue-core": "^0.5.3"
+    "kuaukutsu/queue-core": "^0.5.3",
+    "symfony/console": "^7.3"
   },
   "require-dev": {
     "ext-pcntl": "*",

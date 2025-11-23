@@ -7,6 +7,8 @@
 
 declare(strict_types=1);
 
+use Symfony\Component\Console\Output\ConsoleOutput;
+use kuaukutsu\poc\queue\stream\tools\TraceConsoleOutput;
 use kuaukutsu\queue\core\interceptor\ArgumentsVerifyInterceptor;
 use kuaukutsu\poc\queue\stream\interceptor\ExactlyOnceInterceptor;
 use kuaukutsu\poc\queue\stream\tests\stub\QueueSchemaStub;
@@ -22,6 +24,9 @@ $schema = QueueSchemaStub::from((string)argument('schema', 'low'));
 echo 'consumer run: ' . $schema->getRoutingKey() . PHP_EOL;
 
 $consumer = $builder
+    ->withSubscribers(
+        new TraceConsoleOutput(new ConsoleOutput())
+    )
     ->withInterceptors(
         new ArgumentsVerifyInterceptor(),
         new ExactlyOnceInterceptor(createRedisClient('tcp://redis:6379')),

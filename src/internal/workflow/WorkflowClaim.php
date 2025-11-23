@@ -6,9 +6,11 @@ namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
 use Amp\CancelledException;
 use Amp\TimeoutCancellation;
+use kuaukutsu\poc\queue\stream\event\Event;
+use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 
 use function Amp\async;
 use function Amp\Future\await;
@@ -41,14 +43,16 @@ final readonly class WorkflowClaim
             }
 
             if ($list === []) {
-                $ctx->sendAck();
                 break;
             }
 
             try {
                 await($list, new TimeoutCancellation(1800));
-            } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException) {
-                // @fixme: logger
+            } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
+                $ctx->trigger(
+                    Event::TimeoutCancellation,
+                    new SystemExceptionEvent($exception),
+                );
             }
 
             $ctx->sendAck();
