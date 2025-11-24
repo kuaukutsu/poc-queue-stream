@@ -36,10 +36,12 @@ final readonly class WorkflowClaim
             }
         };
 
+        $lastIdentity = '0-0';
         while (true) {
             $list = [];
-            foreach ($this->autoclaim($this->stream) as $identity => $payload) {
+            foreach ($this->autoclaim($this->stream, $lastIdentity) as $identity => $payload) {
                 $list[] = async($workflow(...), $identity, $payload);
+                $lastIdentity = $identity;
             }
 
             if ($list === []) {
@@ -62,13 +64,13 @@ final readonly class WorkflowClaim
     /**
      * @return iterable<non-empty-string, Payload>
      */
-    private function autoclaim(RedisStreamGroup $command): iterable
+    private function autoclaim(RedisStreamGroup $command, string $lastIdentity): iterable
     {
         /**
          * @return iterable<non-empty-string, Payload>
          */
-        $fn = static function (RedisStreamGroup $command): iterable {
-            $batch = $command->autoclaim();
+        $fn = static function (RedisStreamGroup $command, string $lastIdentity): iterable {
+            $batch = $command->autoclaim($lastIdentity);
             if ($batch === []) {
                 return;
             }
@@ -87,6 +89,6 @@ final readonly class WorkflowClaim
         /**
          * @phpstan-var iterable<non-empty-string, Payload>
          */
-        return async($fn(...), $command)->await();
+        return async($fn(...), $command, $lastIdentity)->await();
     }
 }

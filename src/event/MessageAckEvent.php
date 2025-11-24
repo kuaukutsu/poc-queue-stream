@@ -18,6 +18,6 @@ final readonly class MessageAckEvent implements EventInterface
     #[Override]
     public function getMessage(): string
     {
-        return implode(', ', $this->identityList);
+        return sprintf('COUNT: %d, %s', count($this->identityList), implode(', ', $this->identityList));
     }
 }

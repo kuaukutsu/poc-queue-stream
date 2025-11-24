@@ -8,7 +8,7 @@
 declare(strict_types=1);
 
 use kuaukutsu\poc\queue\stream\Builder;
-use kuaukutsu\poc\queue\stream\tests\stub\QueueHandlerStub;
+use kuaukutsu\poc\queue\stream\tests\stub\QueueExceptionHandlerStub;
 use kuaukutsu\poc\queue\stream\tests\stub\QueueSchemaStub;
 use kuaukutsu\queue\core\QueueContext;
 use kuaukutsu\queue\core\QueueTask;
@@ -23,7 +23,7 @@ echo 'publisher run: ' . $schema->getRoutingKey() . PHP_EOL;
 $publisher = $builder->buildPublisher();
 
 $task = new QueueTask(
-    target: QueueHandlerStub::class,
+    target: QueueExceptionHandlerStub::class,
     arguments: [
         'id' => 1,
         'name' => 'test name',
@@ -37,7 +37,7 @@ foreach (range(1, 100) as $item) {
     $publisher->push(
         $schema,
         new QueueTask(
-            target: QueueHandlerStub::class,
+            target: QueueExceptionHandlerStub::class,
             arguments: [
                 'id' => $item,
                 'name' => 'test range',
