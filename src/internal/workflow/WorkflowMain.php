@@ -6,9 +6,11 @@ namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
 use Amp\CancelledException;
 use Amp\TimeoutCancellation;
+use kuaukutsu\poc\queue\stream\event\Event;
+use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 
 use function Amp\async;
 use function Amp\Future\await;
@@ -42,24 +44,21 @@ final readonly class WorkflowMain
                 $list[] = async($workflow(...), $identity, $payload);
             }
 
+            if ($list === []) {
+                $this->autoclaim($ctx, $claim, $catch, $lastAction);
+                continue;
+            }
+
             try {
                 await($list, new TimeoutCancellation(1800));
-            } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException) {
-                // @fixme: logger
+            } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
+                $ctx->trigger(
+                    Event::TimeoutCancellation,
+                    new SystemExceptionEvent($exception),
+                );
             }
 
             $ctx->sendAck();
-
-            if ($list === [] && $lastAction < strtotime('-30 seconds')) {
-                $ctx->defer(
-                    static function (string $callbackId) use ($claim, $ctx, $catch): void {
-                        $claim($ctx, $catch);
-                        $ctx->done($callbackId);
-                    }
-                );
-
-                $lastAction = time();
-            }
         }
     }
 
@@ -92,5 +91,19 @@ final readonly class WorkflowMain
          * @phpstan-var iterable<non-empty-string, Payload>
          */
         return async($fn(...), $command)->await();
+    }
+
+    private function autoclaim(Context $ctx, WorkflowClaim $claim, WorkflowCatch $catch, int &$lastAction): void
+    {
+        if ($lastAction < strtotime('-30 seconds')) {
+            $ctx->defer(
+                static function (string $callbackId) use ($claim, $ctx, $catch): void {
+                    $claim($ctx, $catch);
+                    $ctx->done($callbackId);
+                }
+            );
+
+            $lastAction = time();
+        }
     }
 }

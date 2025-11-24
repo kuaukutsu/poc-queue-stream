@@ -7,6 +7,11 @@ namespace kuaukutsu\poc\queue\stream\internal;
 use Closure;
 use Revolt\EventLoop;
 use kuaukutsu\queue\core\SchemaInterface;
+use kuaukutsu\poc\queue\stream\event\Event;
+use kuaukutsu\poc\queue\stream\event\EventInterface;
+use kuaukutsu\poc\queue\stream\event\EventDispatcher;
+use kuaukutsu\poc\queue\stream\event\MessageAckEvent;
+use kuaukutsu\poc\queue\stream\event\CallbackEvent;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 
@@ -37,6 +42,7 @@ final class Context
         public readonly SchemaInterface $schema,
         private readonly RedisStreamGroup $streamGroup,
         private readonly RedisString $string,
+        private readonly EventDispatcher $eventDispatcher,
         public readonly int $maxExceededAttempts = 3,
     ) {
     }
@@ -69,6 +75,16 @@ final class Context
         return $this->string->copy($source, $destination, $ttl);
     }
 
+    public function trigger(Event $name, EventInterface $event): void
+    {
+        $fn = $this->eventDispatcher->trigger(...);
+        EventLoop::defer(
+            static function () use ($fn, $name, $event): void {
+                $fn($name, $event);
+            }
+        );
+    }
+
     /**
      * @param non-empty-string $identity
      * @param non-empty-string $payloadUuid
@@ -82,12 +98,13 @@ final class Context
     public function sendAck(): void
     {
         if ($this->identityList !== []) {
-            $this->streamGroup->ack(array_shift($this->identityList), ...$this->identityList);
+            $this->streamGroup->ack($this->identityList[0], ...array_slice($this->identityList, 1));
+            $this->trigger(Event::MessageAck, new MessageAckEvent($this->identityList));
             $this->identityList = [];
         }
 
         if ($this->payloadList !== []) {
-            $this->string->del(array_shift($this->payloadList), ...$this->payloadList);
+            $this->string->del($this->payloadList[0], ...array_slice($this->payloadList, 1));
             $this->payloadList = [];
         }
     }
@@ -98,15 +115,17 @@ final class Context
     public function defer(Closure $callback): void
     {
         $callbackId = EventLoop::defer($callback);
+        $this->trigger(Event::CallbackDeferred, new CallbackEvent($callbackId));
         $this->callbackList[$callbackId] = true;
         // truncation tail
-        if (count($this->callbackList) > 32) {
-            $this->callbackList = array_slice($this->callbackList, -32, null, true);
+        if (count($this->callbackList) > 128) {
+            $this->callbackList = array_slice($this->callbackList, -128, null, true);
         }
     }
 
     public function done(string $callbackId): void
     {
+        $this->trigger(Event::CallbackDone, new CallbackEvent($callbackId));
         unset($this->callbackList[$callbackId]);
     }
 

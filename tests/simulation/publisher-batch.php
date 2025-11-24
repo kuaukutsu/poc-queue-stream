@@ -21,7 +21,7 @@ $schema = QueueSchemaStub::from((string)argument('schema', 'low'));
 echo 'publisher run: ' . $schema->getRoutingKey() . PHP_EOL;
 
 $batch = [];
-foreach (range(1, 100) as $item) {
+foreach (range(1, 500) as $item) {
     $batch[] = new QueueTask(
         target: QueueHandlerStub::class,
         arguments: [
