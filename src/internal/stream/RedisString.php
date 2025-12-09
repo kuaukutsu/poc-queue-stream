@@ -7,14 +7,17 @@ namespace kuaukutsu\poc\queue\stream\internal\stream;
 use Throwable;
 use Amp\Redis\Command\Option\SetOptions;
 use Amp\Redis\RedisClient;
+use kuaukutsu\queue\core\SchemaInterface;
 
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
  */
 final readonly class RedisString
 {
-    public function __construct(private RedisClient $client)
-    {
+    public function __construct(
+        private RedisClient $client,
+        private SchemaInterface $schema,
+    ) {
     }
 
     /**
@@ -25,7 +28,7 @@ final readonly class RedisString
     public function set(string $uuid, string $value, int $ttl = 600): bool
     {
         $options = new SetOptions();
-        return $this->client->set($uuid, $value, $options->withTtl($ttl));
+        return $this->client->set($this->generateKey($uuid), $value, $options->withTtl($ttl));
     }
 
     /**
@@ -35,8 +38,10 @@ final readonly class RedisString
      */
     public function copy(string $source, string $destination, int $ttl = 600): bool
     {
-        $row = $this->client->execute('COPY', $source, $destination);
-        if ($row > 0) {
+        $source = $this->generateKey($source);
+        $destination = $this->generateKey($destination);
+
+        if ($this->client->execute('COPY', $source, $destination) > 0) {
             return $this->client->expireIn($destination, $ttl);
         }
 
@@ -48,7 +53,7 @@ final readonly class RedisString
      */
     public function get(string $uuid): ?string
     {
-        $message = $this->client->get($uuid);
+        $message = $this->client->get($this->generateKey($uuid));
         if ($message === null || $message === '') {
             return null;
         }
@@ -63,9 +68,21 @@ final readonly class RedisString
     public function del(string $uuid, string ...$uuids): int
     {
         try {
-            return $this->client->delete($uuid, ...$uuids);
+            return $this->client->delete(
+                $this->generateKey($uuid),
+                ...array_map($this->generateKey(...), $uuids)
+            );
         } catch (Throwable) {
             return 0;
         }
+    }
+
+    /**
+     * @param non-empty-string $uuid
+     * @return non-empty-string
+     */
+    private function generateKey(string $uuid): string
+    {
+        return hash('xxh3', $uuid . $this->schema->getRoutingKey());
     }
 }

@@ -16,7 +16,7 @@ use kuaukutsu\poc\queue\stream\StreamOptions;
  * @psalm-internal kuaukutsu\poc\queue\stream
  * @psalm-suppress MissingThrowsDocblock
  */
-final readonly class RedisStreamGroup
+final readonly class RedisConsume
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -200,6 +200,9 @@ final readonly class RedisStreamGroup
         return $result > 0;
     }
 
+    /**
+     * @see https://redis.io/docs/latest/commands/xgroup-delconsumer/
+     */
     public function delConsumer(): bool
     {
         $result = $this->client->execute(

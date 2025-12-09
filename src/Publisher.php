@@ -13,7 +13,7 @@ use kuaukutsu\queue\core\QueueContext;
 use kuaukutsu\queue\core\QueueMessage;
 use kuaukutsu\queue\core\QueueTask;
 use kuaukutsu\queue\core\SchemaInterface;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStream;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisPublish;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
@@ -25,14 +25,8 @@ use function Amp\Future\await;
  */
 final readonly class Publisher implements PublisherInterface
 {
-    private RedisStream $stream;
-
-    private RedisString $string;
-
-    public function __construct(RedisClient $redis)
+    public function __construct(private RedisClient $redis)
     {
-        $this->stream = new RedisStream($redis);
-        $this->string = new RedisString($redis);
     }
 
     /**
@@ -42,15 +36,18 @@ final readonly class Publisher implements PublisherInterface
     #[Override]
     public function push(SchemaInterface $schema, QueueTask $task, ?QueueContext $context = null): string
     {
-        $this->string->set(
+        $string = new RedisString($this->redis, $schema);
+        $stream = new RedisPublish($this->redis, $schema);
+
+        $string->set(
             $task->getUuid(),
             QueueMessage::makeMessage($task, $context ?? QueueContext::make($schema)),
         );
 
         try {
-            $this->stream->add($schema, Payload::fromTask($task)->toArray());
+            $stream->add(Payload::fromTask($task)->toArray());
         } catch (Throwable $exception) {
-            $this->string->del($task->getUuid());
+            $string->del($task->getUuid());
             throw new QueuePublishException($schema, $exception);
         }
 

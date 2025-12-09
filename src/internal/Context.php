@@ -12,7 +12,7 @@ use kuaukutsu\poc\queue\stream\event\EventInterface;
 use kuaukutsu\poc\queue\stream\event\EventDispatcher;
 use kuaukutsu\poc\queue\stream\event\MessageAckEvent;
 use kuaukutsu\poc\queue\stream\event\CallbackEvent;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 
 /**
@@ -40,7 +40,7 @@ final class Context
      */
     public function __construct(
         public readonly SchemaInterface $schema,
-        private readonly RedisStreamGroup $streamGroup,
+        private readonly RedisConsume $streamGroup,
         private readonly RedisString $string,
         private readonly EventDispatcher $eventDispatcher,
         public readonly int $maxExceededAttempts = 3,

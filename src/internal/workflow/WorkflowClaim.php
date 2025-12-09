@@ -8,7 +8,7 @@ use Amp\CancelledException;
 use Amp\TimeoutCancellation;
 use kuaukutsu\poc\queue\stream\event\Event;
 use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
@@ -22,7 +22,7 @@ final readonly class WorkflowClaim
 {
     public function __construct(
         private TaskHandler $action,
-        private RedisStreamGroup $stream,
+        private RedisConsume $stream,
     ) {
     }
 
@@ -64,12 +64,12 @@ final readonly class WorkflowClaim
     /**
      * @return iterable<non-empty-string, Payload>
      */
-    private function autoclaim(RedisStreamGroup $command, string $lastIdentity): iterable
+    private function autoclaim(RedisConsume $command, string $lastIdentity): iterable
     {
         /**
          * @return iterable<non-empty-string, Payload>
          */
-        $fn = static function (RedisStreamGroup $command, string $lastIdentity): iterable {
+        $fn = static function (RedisConsume $command, string $lastIdentity): iterable {
             $batch = $command->autoclaim($lastIdentity);
             if ($batch === []) {
                 return;

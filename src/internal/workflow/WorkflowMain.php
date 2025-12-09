@@ -8,7 +8,7 @@ use Amp\CancelledException;
 use Amp\TimeoutCancellation;
 use kuaukutsu\poc\queue\stream\event\Event;
 use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
@@ -22,7 +22,7 @@ final readonly class WorkflowMain
 {
     public function __construct(
         private TaskHandler $action,
-        private RedisStreamGroup $stream,
+        private RedisConsume $stream,
     ) {
     }
 
@@ -65,12 +65,12 @@ final readonly class WorkflowMain
     /**
      * @return iterable<non-empty-string, Payload>
      */
-    private function read(RedisStreamGroup $command): iterable
+    private function read(RedisConsume $command): iterable
     {
         /**
          * @return iterable<non-empty-string, Payload>
          */
-        $fn = static function (RedisStreamGroup $command): iterable {
+        $fn = static function (RedisConsume $command): iterable {
             $batch = $command->read();
             if ($batch === []) {
                 return;
