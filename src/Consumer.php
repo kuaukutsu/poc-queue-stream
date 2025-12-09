@@ -14,7 +14,7 @@ use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\ConsumerInterface;
 use kuaukutsu\queue\core\SchemaInterface;
 use kuaukutsu\poc\queue\stream\event\EventDispatcher;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
 use kuaukutsu\poc\queue\stream\internal\workflow\TaskHandler;
 use kuaukutsu\poc\queue\stream\internal\workflow\WorkflowCatch;
@@ -50,13 +50,14 @@ final class Consumer implements ConsumerInterface
     #[Override]
     public function consume(SchemaInterface $schema): void
     {
-        $stream = new RedisStreamGroup($this->redis, $this->options, $schema);
+        $string = new RedisString($this->redis, $schema);
+        $stream = new RedisConsume($this->redis, $this->options, $schema);
         $stream->create();
 
         $this->ctx = new Context(
             $schema,
             $stream,
-            new RedisString($this->redis),
+            $string,
             $this->eventDispatcher,
         );
 

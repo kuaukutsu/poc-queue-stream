@@ -11,7 +11,7 @@ use kuaukutsu\poc\queue\stream\event\Event;
 use kuaukutsu\poc\queue\stream\event\MessageErrorEvent;
 use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
 use kuaukutsu\poc\queue\stream\exception\WorkflowException;
-use kuaukutsu\poc\queue\stream\internal\stream\RedisStreamGroup;
+use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
@@ -22,7 +22,7 @@ use function Amp\async;
  */
 final readonly class WorkflowCatch
 {
-    public function __construct(private RedisStreamGroup $stream)
+    public function __construct(private RedisConsume $stream)
     {
     }
 
@@ -150,13 +150,13 @@ final readonly class WorkflowCatch
      * @param non-empty-string $identity
      * @return positive-int
      */
-    private function attempts(RedisStreamGroup $command, Context $ctx, string $identity): int
+    private function attempts(RedisConsume $command, Context $ctx, string $identity): int
     {
         /**
          * @param non-empty-string $identity
          * @return positive-int
          */
-        $fn = static function (RedisStreamGroup $command, Context $ctx, string $identity): int {
+        $fn = static function (RedisConsume $command, Context $ctx, string $identity): int {
             /** @var non-empty-string $identity */
             try {
                 $pending = $command->pending($identity);

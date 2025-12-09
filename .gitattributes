@@ -5,6 +5,7 @@
 /*.neon                 export-ignore
 /*.xml                  export-ignore
 /*.xml.dist             export-ignore
+/*.lock                 export-ignore
 docker-compose.yml      export-ignore
 Makefile                export-ignore
 rector.php              export-ignore

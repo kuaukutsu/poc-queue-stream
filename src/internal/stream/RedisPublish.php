@@ -13,14 +13,22 @@ use kuaukutsu\queue\core\SchemaInterface;
  * @psalm-internal kuaukutsu\poc\queue\stream
  * @psalm-suppress MissingThrowsDocblock
  */
-final readonly class RedisStream
+final readonly class RedisPublish
 {
     use ForbidCloning;
     use ForbidSerialization;
     use StreamUtils;
 
-    public function __construct(private RedisClient $client)
-    {
+    /**
+     * @var non-empty-string
+     */
+    private string $key;
+
+    public function __construct(
+        private RedisClient $client,
+        private SchemaInterface $schema,
+    ) {
+        $this->key = $this->generateKey($this->schema);
     }
 
     /**
@@ -29,12 +37,12 @@ final readonly class RedisStream
      * @return ?non-empty-string
      * @see https://redis.io/docs/latest/commands/xadd/
      */
-    public function add(SchemaInterface $schema, array $payload, int|false $maxlen = 100_000): ?string
+    public function add(array $payload, int|false $maxlen = 100_000): ?string
     {
         $identity = $maxlen > 0
             ? $this->client->execute(
                 'XADD',
-                $this->generateKey($schema),
+                $this->key,
                 'MAXLEN',
                 '~',
                 $maxlen,
@@ -43,7 +51,7 @@ final readonly class RedisStream
             )
             : $this->client->execute(
                 'XADD',
-                $this->generateKey($schema),
+                $this->key,
                 '*',
                 ...$this->preparePayload($payload)
             );
