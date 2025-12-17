@@ -87,8 +87,19 @@ consumer:
 		php worker-with-catch.php --schema=high
 
 bench: ## bench
-	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / cli \
-		./vendor/bin/phpbench run ./benchmark --report=aggregate --config=/benchmark/phpbench.json
+	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / \
+		-e XDEBUG_MODE=off \
+		cli ./vendor/bin/phpbench run ./benchmark --report=aggregate --config=/benchmark/phpbench.json
+
+bench-redis: ## bench
+	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / \
+		-e XDEBUG_MODE=off \
+		cli ./vendor/bin/phpbench run ./benchmark --report=aggregate --group=redis --config=/benchmark/phpbench.json
+
+bench-valkey: ## bench
+	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / \
+		-e XDEBUG_MODE=off \
+		cli ./vendor/bin/phpbench run ./benchmark --report=aggregate --group=valkey --config=/benchmark/phpbench.json
 
 _image_remove:
 	docker image rm -f \

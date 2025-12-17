@@ -7,6 +7,7 @@ namespace kuaukutsu\poc\queue\stream\benchmarks;
 use Amp\Redis\RedisConfig;
 use Amp\Redis\RedisException;
 use DI\Container;
+use PhpBench\Attributes\Groups;
 use PhpBench\Attributes\Iterations;
 use PhpBench\Attributes\Revs;
 use kuaukutsu\poc\queue\stream\Builder;
@@ -19,6 +20,7 @@ use kuaukutsu\queue\core\QueueTask;
 
 #[Revs(10)]
 #[Iterations(5)]
+#[Groups(['redis'])]
 final class PublisherRedisBench
 {
     private PublisherInterface $publisher;
