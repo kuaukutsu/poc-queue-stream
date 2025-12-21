@@ -1,10 +1,10 @@
 ## Обработка задач через внешнюю очередь Redis Stream
 
-[![PHP Version Require](http://poser.pugx.org/kuaukutsu/poc-queue-redis/require/php)](https://packagist.org/packages/kuaukutsu/poc-queue-redis)
-[![Latest Stable Version](https://poser.pugx.org/kuaukutsu/poc-queue-redis/v/stable)](https://packagist.org/packages/kuaukutsu/poc-queue-redis)
-[![License](http://poser.pugx.org/kuaukutsu/poc-queue-redis/license)](https://packagist.org/packages/kuaukutsu/poc-queue-redis)
-[![Psalm Level](https://shepherd.dev/github/kuaukutsu/poc-queue-redis/level.svg)](https://shepherd.dev/github/kuaukutsu/poc-queue-redis)
-[![Psalm Type Coverage](https://shepherd.dev/github/kuaukutsu/poc-queue-redis/coverage.svg)](https://shepherd.dev/github/kuaukutsu/poc-queue-redis)
+[![PHP Version Require](http://poser.pugx.org/kuaukutsu/poc-queue-stream/require/php)](https://packagist.org/packages/kuaukutsu/poc-queue-stream)
+[![Latest Stable Version](https://poser.pugx.org/kuaukutsu/poc-queue-stream/v/stable)](https://packagist.org/packages/kuaukutsu/poc-queue-stream)
+[![License](http://poser.pugx.org/kuaukutsu/poc-queue-stream/license)](https://packagist.org/packages/kuaukutsu/poc-queue-stream)
+[![Psalm Level](https://shepherd.dev/github/kuaukutsu/poc-queue-stream/level.svg)](https://shepherd.dev/github/kuaukutsu/poc-queue-stream)
+[![Psalm Type Coverage](https://shepherd.dev/github/kuaukutsu/poc-queue-stream/coverage.svg)](https://shepherd.dev/github/kuaukutsu/poc-queue-stream)
 
 Очередь: **Redis** / **ValKey**
 
