@@ -63,7 +63,7 @@
     ],
     "phpcs": "vendor/bin/phpcs",
     "psalm": "vendor/bin/psalm --show-info --no-diff --no-cache",
-    "phpstan": "vendor/bin/phpstan analyze",
+    "phpstan": "vendor/bin/phpstan analyze -c phpstan.neon",
     "rector": "vendor/bin/rector"
   },
   "minimum-stability": "dev",

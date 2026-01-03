@@ -55,11 +55,15 @@ final readonly class Publisher implements PublisherInterface
     }
 
     #[Override]
-    public function pushBatch(SchemaInterface $schema, array $taskBatch, ?QueueContext $context = null): array
+    public function pushBatch(SchemaInterface $schema, iterable $taskBatch, ?QueueContext $context = null): array
     {
         $groupAwait = [];
         foreach ($taskBatch as $task) {
             $groupAwait[] = async($this->push(...), $schema, $task, $context);
+        }
+
+        if ($groupAwait === []) {
+            return [];
         }
 
         /**
