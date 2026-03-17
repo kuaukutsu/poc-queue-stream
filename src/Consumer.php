@@ -8,6 +8,7 @@ use Closure;
 use Override;
 use Throwable;
 use Amp\Redis\RedisClient;
+use Amp\TimeoutCancellation;
 use Revolt\EventLoop;
 use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\ConsumerInterface;
@@ -55,6 +56,7 @@ final class Consumer implements ConsumerInterface
             $stream,
             $string,
             $this->eventDispatcher,
+            new TimeoutCancellation(1800),
         );
 
         EventLoop::queue(

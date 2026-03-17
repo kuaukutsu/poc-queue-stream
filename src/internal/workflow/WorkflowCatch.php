@@ -1,5 +1,7 @@
 <?php
 
+/** @noinspection PhpRedundantCatchClauseInspection */
+
 declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
@@ -66,7 +68,7 @@ final readonly class WorkflowCatch
             return;
         }
 
-        $attempts = $this->attempts($this->stream, $ctx, $identity);
+        $attempts = $this->attempts($ctx, $this->stream, $identity);
         $ctx->trigger(
             Event::MessageHandleError,
             new MessageErrorEvent($payload, $exception, $attempts),
@@ -155,29 +157,29 @@ final readonly class WorkflowCatch
      * @param non-empty-string $identity
      * @return positive-int
      */
-    private function attempts(RedisConsume $command, Context $ctx, string $identity): int
+    private function attempts(Context $ctx, RedisConsume $command, string $identity): int
     {
         /**
-         * @psalm-var Closure(RedisConsume, Context, non-empty-string): positive-int $fn
+         * @psalm-var Closure(Context, RedisConsume, non-empty-string): positive-int $fn
          */
-        static $fn = static function (RedisConsume $command, Context $ctx, string $identity): int {
+        static $fn = static function (Context $ctx, RedisConsume $command, string $identity): int {
             /** @var non-empty-string $identity */
             try {
                 $pending = $command->pending($identity);
+                return max(1, $pending['deliveryCount']);
             } catch (Throwable $exception) {
                 $ctx->trigger(
                     Event::RuntimeException,
                     new SystemExceptionEvent($exception),
                 );
-                return 1;
             }
 
-            return max(1, $pending['deliveryCount']);
+            return 1;
         };
 
         /**
          * @phpstan-var positive-int
          */
-        return async($fn(...), $command, $ctx, $identity)->await();
+        return $ctx->awaitFuture(async($fn(...), $ctx, $command, $identity)) ?? 1;
     }
 }

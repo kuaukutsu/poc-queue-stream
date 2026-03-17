@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace kuaukutsu\poc\queue\stream\internal;
 
 use Closure;
+use Amp\Future;
+use Amp\Cancellation;
+use Amp\CancelledException;
 use Revolt\EventLoop;
 use kuaukutsu\queue\core\SchemaInterface;
 use kuaukutsu\poc\queue\stream\event\Event;
@@ -12,8 +15,11 @@ use kuaukutsu\poc\queue\stream\event\EventInterface;
 use kuaukutsu\poc\queue\stream\event\EventDispatcher;
 use kuaukutsu\poc\queue\stream\event\MessageAckEvent;
 use kuaukutsu\poc\queue\stream\event\CallbackEvent;
+use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisString;
+
+use function Amp\Future\await;
 
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
@@ -40,7 +46,18 @@ final class Context
         private readonly RedisConsume $streamGroup,
         private readonly RedisString $string,
         private readonly EventDispatcher $eventDispatcher,
+        private readonly ?Cancellation $cancellation = null,
     ) {
+    }
+
+    public function trigger(Event $name, EventInterface $event): void
+    {
+        $fn = $this->eventDispatcher->trigger(...);
+        EventLoop::defer(
+            static function () use ($fn, $name, $event): void {
+                $fn($name, $event);
+            }
+        );
     }
 
     /**
@@ -71,16 +88,6 @@ final class Context
         return $this->string->copy($source, $destination, $ttl);
     }
 
-    public function trigger(Event $name, EventInterface $event): void
-    {
-        $fn = $this->eventDispatcher->trigger(...);
-        EventLoop::defer(
-            static function () use ($fn, $name, $event): void {
-                $fn($name, $event);
-            }
-        );
-    }
-
     /**
      * @param non-empty-string $identity
      * @param non-empty-string $payloadUuid
@@ -102,6 +109,43 @@ final class Context
         if ($this->payloadList !== []) {
             $this->string->del($this->payloadList[0], ...array_slice($this->payloadList, 1));
             $this->payloadList = [];
+        }
+    }
+
+    /**
+     * @template T
+     * @param Future<T> $future
+     * @return ?T
+     * @noinspection PhpRedundantCatchClauseInspection
+     */
+    public function awaitFuture(Future $future): mixed
+    {
+        try {
+            return $future->await($this->cancellation);
+        } catch (CancelledException $exception) {
+            $this->trigger(
+                Event::TimeoutCancellation,
+                new SystemExceptionEvent($exception),
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * @template T
+     * @param list<Future<T>> $futures
+     * @noinspection PhpRedundantCatchClauseInspection
+     */
+    public function awaitFutures(array $futures): void
+    {
+        try {
+            await($futures, $this->cancellation);
+        } catch (CancelledException $exception) {
+            $this->trigger(
+                Event::TimeoutCancellation,
+                new SystemExceptionEvent($exception),
+            );
         }
     }
 
