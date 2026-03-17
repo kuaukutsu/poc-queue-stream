@@ -170,13 +170,13 @@ final readonly class RedisConsume
             1,
         );
 
-        if (is_array($result)) {
+        if (is_array($result) && is_array($result[0])) {
             return [
-                /**
-                 * @phpstan-ignore offsetAccess.nonOffsetAccessible,cast.string
-                 */
+                /** @phpstan-ignore cast.string */
                 'consumer' => (string)($result[0][1] ?? $template['consumer']),
+                /** @phpstan-ignore cast.int */
                 'elapsedMilliseconds' => (int)($result[0][2] ?? $template['elapsedMilliseconds']),
+                /** @phpstan-ignore cast.int */
                 'deliveryCount' => (int)($result[0][3] ?? $template['deliveryCount']),
             ];
         }

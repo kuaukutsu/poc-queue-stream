@@ -9,7 +9,6 @@ use Override;
 use Throwable;
 use Amp\Redis\RedisClient;
 use Revolt\EventLoop;
-use kuaukutsu\queue\core\exception\QueueConsumeException;
 use kuaukutsu\queue\core\handler\HandlerInterface;
 use kuaukutsu\queue\core\ConsumerInterface;
 use kuaukutsu\queue\core\SchemaInterface;
@@ -44,9 +43,6 @@ final class Consumer implements ConsumerInterface
         $this->handler = new TaskHandler($handler, $catch);
     }
 
-    /**
-     * @throws QueueConsumeException
-     */
     #[Override]
     public function consume(SchemaInterface $schema): void
     {

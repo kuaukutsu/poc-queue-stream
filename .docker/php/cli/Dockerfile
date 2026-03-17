@@ -26,14 +26,14 @@ ENV COMPOSER_CACHE_DIR=/var/.composer
 
 FROM app_setup AS app_worker
 
-RUN install-php-extensions opcache igbinary
+RUN install-php-extensions igbinary
 
 USER $UID
 WORKDIR $WORKDIR
 
 FROM app_setup AS app_devel
 
-RUN install-php-extensions opcache igbinary xdebug
+RUN install-php-extensions igbinary xdebug
 
 USER $UID
 WORKDIR $WORKDIR

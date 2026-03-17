@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace kuaukutsu\poc\queue\stream\tools;
+namespace kuaukutsu\poc\queue\stream\tests\stub;
 
 use LogicException;
 use Override;

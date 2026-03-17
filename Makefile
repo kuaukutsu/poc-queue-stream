@@ -29,6 +29,10 @@ check:
 		composer:latest \
 		composer check
 
+fix:
+	- make phpcbf
+	- make rector
+
 psalm: ## psalm
 	docker run --init -it --rm -u ${USER} -v "$$(pwd):/app" -w /app \
 		ghcr.io/kuaukutsu/php:${PHP_VERSION}-cli \
@@ -84,7 +88,7 @@ publisher:
 
 consumer:
 	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w /tests/simulation cli \
-		php worker-with-catch.php --schema=high
+		php worker.php --schema=high
 
 bench: ## bench
 	USER=$(USER) docker compose -f ./docker-compose.yml run --rm -u $(USER) -w / \
