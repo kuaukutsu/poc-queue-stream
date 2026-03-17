@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
+use Closure;
 use Amp\CancelledException;
 use Amp\TimeoutCancellation;
 use kuaukutsu\poc\queue\stream\event\Event;
@@ -29,7 +30,17 @@ final readonly class WorkflowClaim
     public function __invoke(Context $ctx, WorkflowCatch $catch): void
     {
         $action = $this->action->run(...);
-        $workflow = static function (string $identity, Payload $payload) use ($action, $catch, $ctx): void {
+
+        /**
+         * @psalm-var Closure(Context, string, Payload, callable, callable): void $workflow
+         */
+        static $workflow = static function (
+            Context $ctx,
+            string $identity,
+            Payload $payload,
+            callable $action,
+            callable $catch,
+        ): void {
             /** @var non-empty-string $identity */
             if ($action($catch(...), $ctx, $identity, $payload)) {
                 $ctx->setAck($identity, $payload->uuid);
@@ -40,7 +51,7 @@ final readonly class WorkflowClaim
         while (true) {
             $list = [];
             foreach ($this->autoclaim($this->stream, $lastIdentity) as $identity => $payload) {
-                $list[] = async($workflow(...), $identity, $payload);
+                $list[] = async($workflow(...), $ctx, $identity, $payload, $action, $catch);
                 $lastIdentity = $identity;
             }
 
@@ -67,9 +78,10 @@ final readonly class WorkflowClaim
     private function autoclaim(RedisConsume $command, string $lastIdentity): iterable
     {
         /**
-         * @return iterable<non-empty-string, Payload>
+         * @psalm-var Closure(RedisConsume, string): iterable<non-empty-string, Payload> $fn
+         * @phpstan-ignore varTag.nativeType
          */
-        $fn = static function (RedisConsume $command, string $lastIdentity): iterable {
+        static $fn = static function (RedisConsume $command, string $lastIdentity): iterable {
             $batch = $command->autoclaim($lastIdentity);
             if ($batch === []) {
                 return;

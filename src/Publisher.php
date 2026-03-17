@@ -29,10 +29,6 @@ final readonly class Publisher implements PublisherInterface
     {
     }
 
-    /**
-     * @return non-empty-string
-     * @throws QueuePublishException
-     */
     #[Override]
     public function push(SchemaInterface $schema, QueueTask $task, ?QueueContext $context = null): string
     {

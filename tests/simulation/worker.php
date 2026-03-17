@@ -8,10 +8,10 @@
 declare(strict_types=1);
 
 use Symfony\Component\Console\Output\ConsoleOutput;
-use kuaukutsu\poc\queue\stream\tools\TraceConsoleOutput;
 use kuaukutsu\queue\core\interceptor\ArgumentsVerifyInterceptor;
 use kuaukutsu\poc\queue\stream\interceptor\ExactlyOnceInterceptor;
 use kuaukutsu\poc\queue\stream\tests\stub\QueueSchemaStub;
+use kuaukutsu\poc\queue\stream\tests\stub\TraceConsoleOutput;
 use kuaukutsu\poc\queue\stream\Builder;
 
 use function Amp\Redis\createRedisClient;

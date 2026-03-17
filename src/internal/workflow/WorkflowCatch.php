@@ -22,8 +22,13 @@ use function Amp\async;
  */
 final readonly class WorkflowCatch
 {
-    public function __construct(private RedisConsume $stream)
-    {
+    /**
+     * @param non-negative-int $maxExceededAttempts
+     */
+    public function __construct(
+        private RedisConsume $stream,
+        private int $maxExceededAttempts = 3,
+    ) {
     }
 
     /**
@@ -51,7 +56,7 @@ final readonly class WorkflowCatch
             return;
         }
 
-        if ($ctx->maxExceededAttempts === 0) {
+        if ($this->maxExceededAttempts === 0) {
             $ctx->trigger(
                 Event::MessageHandleError,
                 new MessageErrorEvent($payload, $exception),
@@ -67,7 +72,7 @@ final readonly class WorkflowCatch
             new MessageErrorEvent($payload, $exception, $attempts),
         );
 
-        if ($attempts >= $ctx->maxExceededAttempts) {
+        if ($attempts >= $this->maxExceededAttempts) {
             $this->dlq(
                 $ctx,
                 $identity,
@@ -153,10 +158,9 @@ final readonly class WorkflowCatch
     private function attempts(RedisConsume $command, Context $ctx, string $identity): int
     {
         /**
-         * @param non-empty-string $identity
-         * @return positive-int
+         * @psalm-var Closure(RedisConsume, Context, non-empty-string): positive-int $fn
          */
-        $fn = static function (RedisConsume $command, Context $ctx, string $identity): int {
+        static $fn = static function (RedisConsume $command, Context $ctx, string $identity): int {
             /** @var non-empty-string $identity */
             try {
                 $pending = $command->pending($identity);

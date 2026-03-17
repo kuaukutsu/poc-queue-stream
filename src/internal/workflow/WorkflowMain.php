@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
+use Closure;
 use Amp\CancelledException;
 use Amp\TimeoutCancellation;
 use kuaukutsu\poc\queue\stream\event\Event;
@@ -30,7 +31,17 @@ final readonly class WorkflowMain
     {
         $lastAction = time();
         $action = $this->action->run(...);
-        $workflow = static function (string $identity, Payload $payload) use ($action, $catch, $ctx): void {
+
+        /**
+         * @psalm-var Closure(Context, string, Payload, callable, callable): void $workflow
+         */
+        static $workflow = static function (
+            Context $ctx,
+            string $identity,
+            Payload $payload,
+            callable $action,
+            callable $catch,
+        ): void {
             /** @var non-empty-string $identity */
             if ($action($catch(...), $ctx, $identity, $payload)) {
                 $ctx->setAck($identity, $payload->uuid);
@@ -41,7 +52,7 @@ final readonly class WorkflowMain
         while (true) {
             $list = [];
             foreach ($this->read($this->stream) as $identity => $payload) {
-                $list[] = async($workflow(...), $identity, $payload);
+                $list[] = async($workflow(...), $ctx, $identity, $payload, $action, $catch);
             }
 
             if ($list === []) {
@@ -68,9 +79,10 @@ final readonly class WorkflowMain
     private function read(RedisConsume $command): iterable
     {
         /**
-         * @return iterable<non-empty-string, Payload>
+         * @psalm-var Closure(RedisConsume):iterable<non-empty-string, Payload> $fn
+         * @phpstan-ignore varTag.nativeType
          */
-        $fn = static function (RedisConsume $command): iterable {
+        static $fn = static function (RedisConsume $command): iterable {
             $batch = $command->read();
             if ($batch === []) {
                 return;

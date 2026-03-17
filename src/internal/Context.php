@@ -28,22 +28,18 @@ final class Context
     /**
      * @var non-empty-string[]
      */
-    private array $identityList = [];
+    private array $ackList = [];
 
     /**
      * @var non-empty-string[]
      */
     private array $payloadList = [];
 
-    /**
-     * @param non-negative-int $maxExceededAttempts
-     */
     public function __construct(
         public readonly SchemaInterface $schema,
         private readonly RedisConsume $streamGroup,
         private readonly RedisString $string,
         private readonly EventDispatcher $eventDispatcher,
-        public readonly int $maxExceededAttempts = 3,
     ) {
     }
 
@@ -91,16 +87,16 @@ final class Context
      */
     public function setAck(string $identity, string $payloadUuid): void
     {
-        $this->identityList[] = $identity;
+        $this->ackList[] = $identity;
         $this->payloadList[] = $payloadUuid;
     }
 
     public function sendAck(): void
     {
-        if ($this->identityList !== []) {
-            $this->streamGroup->ack($this->identityList[0], ...array_slice($this->identityList, 1));
-            $this->trigger(Event::MessageAck, new MessageAckEvent($this->identityList));
-            $this->identityList = [];
+        if ($this->ackList !== []) {
+            $this->streamGroup->ack($this->ackList[0], ...array_slice($this->ackList, 1));
+            $this->trigger(Event::MessageAck, new MessageAckEvent($this->ackList));
+            $this->ackList = [];
         }
 
         if ($this->payloadList !== []) {
