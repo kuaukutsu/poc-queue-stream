@@ -33,11 +33,11 @@ final readonly class TaskHandler
     }
 
     /**
-     * @param Closure(Context, non-empty-string, Payload, Throwable):void $catchHandle
      * @param non-empty-string $identity
+     * @param Closure(Context, non-empty-string, Payload, Throwable):void $catchHandle
      * @return bool TRUE отправить ACK; FALSE не отправлять ACK
      */
-    public function run(Closure $catchHandle, Context $context, string $identity, Payload $payload): bool
+    public function run(Context $context, string $identity, Payload $payload, Closure $catchHandle): bool
     {
         $message = $context->getData($payload->uuid);
         if ($message === null || $message === '') {

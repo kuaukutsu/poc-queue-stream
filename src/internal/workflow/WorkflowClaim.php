@@ -1,20 +1,17 @@
 <?php
 
+/** @noinspection PhpRedundantCatchClauseInspection */
+
 declare(strict_types=1);
 
 namespace kuaukutsu\poc\queue\stream\internal\workflow;
 
 use Closure;
-use Amp\CancelledException;
-use Amp\TimeoutCancellation;
-use kuaukutsu\poc\queue\stream\event\Event;
-use kuaukutsu\poc\queue\stream\event\SystemExceptionEvent;
 use kuaukutsu\poc\queue\stream\internal\stream\RedisConsume;
 use kuaukutsu\poc\queue\stream\internal\Context;
 use kuaukutsu\poc\queue\stream\internal\Payload;
 
 use function Amp\async;
-use function Amp\Future\await;
 
 /**
  * @psalm-internal kuaukutsu\poc\queue\stream
@@ -29,7 +26,7 @@ final readonly class WorkflowClaim
 
     public function __invoke(Context $ctx, WorkflowCatch $catch): void
     {
-        $action = $this->action->run(...);
+        static $action = $this->action->run(...);
 
         /**
          * @psalm-var Closure(Context, string, Payload, callable, callable): void $workflow
@@ -42,7 +39,7 @@ final readonly class WorkflowClaim
             callable $catch,
         ): void {
             /** @var non-empty-string $identity */
-            if ($action($catch(...), $ctx, $identity, $payload)) {
+            if ($action($ctx, $identity, $payload, $catch(...))) {
                 $ctx->setAck($identity, $payload->uuid);
             }
         };
@@ -50,7 +47,7 @@ final readonly class WorkflowClaim
         $lastIdentity = '0-0';
         while (true) {
             $list = [];
-            foreach ($this->autoclaim($this->stream, $lastIdentity) as $identity => $payload) {
+            foreach ($this->autoclaim($ctx, $this->stream, $lastIdentity) as $identity => $payload) {
                 $list[] = async($workflow(...), $ctx, $identity, $payload, $action, $catch);
                 $lastIdentity = $identity;
             }
@@ -59,15 +56,7 @@ final readonly class WorkflowClaim
                 break;
             }
 
-            try {
-                await($list, new TimeoutCancellation(1800));
-            } /** @noinspection PhpRedundantCatchClauseInspection */ catch (CancelledException $exception) {
-                $ctx->trigger(
-                    Event::TimeoutCancellation,
-                    new SystemExceptionEvent($exception),
-                );
-            }
-
+            $ctx->awaitFutures($list);
             $ctx->sendAck();
         }
     }
@@ -75,7 +64,7 @@ final readonly class WorkflowClaim
     /**
      * @return iterable<non-empty-string, Payload>
      */
-    private function autoclaim(RedisConsume $command, string $lastIdentity): iterable
+    private function autoclaim(Context $ctx, RedisConsume $command, string $lastIdentity): iterable
     {
         /**
          * @psalm-var Closure(RedisConsume, string): iterable<non-empty-string, Payload> $fn
@@ -99,8 +88,8 @@ final readonly class WorkflowClaim
         };
 
         /**
-         * @phpstan-var iterable<non-empty-string, Payload>
+         * @var iterable<non-empty-string, Payload>
          */
-        return async($fn(...), $command, $lastIdentity)->await();
+        return $ctx->awaitFuture(async($fn(...), $command, $lastIdentity)) ?? [];
     }
 }
