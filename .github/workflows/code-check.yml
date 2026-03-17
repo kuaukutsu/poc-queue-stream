@@ -32,7 +32,7 @@ jobs:
         run: vendor/bin/phpcs
 
       - name: Psalm
-        run: vendor/bin/psalm --stats
+        run: vendor/bin/psalm --stats --show-info --no-diff --no-cache
 
       - name: PHPStan
         run: vendor/bin/phpstan analyse
